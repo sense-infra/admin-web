@@ -20,12 +20,12 @@ const routes = [
         meta: { title: 'Dashboard' }
       },
       
-      // Admin Management Routes (will create these components)
+      // User Management Routes (will create these components)
       {
         path: '/admin',
         name: 'Admin',
         redirect: '/admin/users',
-        meta: { title: 'Admin Management' }
+        meta: { title: 'User Management' }
       },
       {
         path: '/admin/users',
