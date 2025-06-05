@@ -2,7 +2,7 @@
   <div class="fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen px-4">
       <div class="fixed inset-0 bg-black opacity-50" @click="$emit('close')"></div>
-      
+
       <div class="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-medium text-gray-900">
@@ -103,17 +103,6 @@
                 <span class="ml-2 text-sm text-gray-600">Active user</span>
               </label>
             </div>
-
-            <div v-if="isEditing">
-              <label class="flex items-center">
-                <input
-                  v-model="form.force_password_change"
-                  type="checkbox"
-                  class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                />
-                <span class="ml-2 text-sm text-gray-600">Force password change on next login</span>
-              </label>
-            </div>
           </div>
 
           <div v-if="error" class="mt-4 p-3 bg-red-100 border border-red-200 text-red-700 rounded">
@@ -166,8 +155,7 @@ const form = ref({
   last_name: '',
   role_id: '',
   password: '',
-  active: true,
-  force_password_change: false
+  active: true
 })
 
 const isEditing = computed(() => !!props.user)
@@ -191,7 +179,12 @@ const handleSubmit = async () => {
     if (isEditing.value) {
       response = await api.put(`/auth/users/${props.user.user_id}`, form.value)
     } else {
-      response = await api.post('/auth/users', form.value)
+      // For new users, always set force_password_change to false
+      const createData = {
+        ...form.value,
+        force_password_change: false
+      }
+      response = await api.post('/auth/users', createData)
       if (response.data.password) {
         generatedPassword.value = response.data.password
         // Don't close modal immediately if password was generated
@@ -212,7 +205,7 @@ const handleSubmit = async () => {
 
 onMounted(async () => {
   await fetchRoles()
-  
+
   if (props.user) {
     form.value = {
       username: props.user.username || '',
@@ -220,8 +213,7 @@ onMounted(async () => {
       first_name: props.user.first_name || '',
       last_name: props.user.last_name || '',
       role_id: props.user.role_id || '',
-      active: props.user.active !== false,
-      force_password_change: props.user.force_password_change || false
+      active: props.user.active !== false
     }
   }
 })

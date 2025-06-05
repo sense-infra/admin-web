@@ -1,59 +1,91 @@
 // src/services/admin.js
 import api from './api'
 
+// ========================================
+// CORE ADMIN SERVICE (Enhanced)
+// ========================================
 export const adminService = {
-  // User Management
+  // ========================================
+  // USER MANAGEMENT (Using correct /auth/ endpoints from main.go)
+  // ========================================
   users: {
     getAll: async () => {
-      const response = await api.get('/admin/users')
+      const response = await api.get('/auth/users')
+      return response.data
+    },
+    getById: async (id) => {
+      const response = await api.get(`/auth/users/${id}`)
       return response.data
     },
     create: async (userData) => {
-      const response = await api.post('/admin/users', userData)
+      const response = await api.post('/auth/users', userData)
       return response.data
     },
     update: async (id, userData) => {
-      const response = await api.put(`/admin/users/${id}`, userData)
+      const response = await api.put(`/auth/users/${id}`, userData)
       return response.data
     },
     delete: async (id) => {
-      return api.delete(`/admin/users/${id}`)
+      return api.delete(`/auth/users/${id}`)
     },
     updatePermissions: async (id, permissions) => {
-      const response = await api.put(`/admin/users/${id}/permissions`, permissions)
+      const response = await api.put(`/auth/users/${id}/permissions`, permissions)
+      return response.data
+    },
+    getRoles: async () => {
+      const response = await api.get('/auth/roles')
       return response.data
     }
   },
 
-  // API Key Management
+  // ========================================
+  // API KEY MANAGEMENT (Using correct /auth/api-keys endpoints from main.go)
+  // ========================================
   apiKeys: {
     getAll: async () => {
-      const response = await api.get('/admin/api-keys')
+      const response = await api.get('/auth/api-keys')
+      return response.data
+    },
+    getById: async (id) => {
+      const response = await api.get(`/auth/api-keys/${id}`)
       return response.data
     },
     create: async (keyData) => {
-      const response = await api.post('/admin/api-keys', keyData)
+      const response = await api.post('/auth/api-keys', keyData)
       return response.data
     },
     update: async (id, keyData) => {
-      const response = await api.put(`/admin/api-keys/${id}`, keyData)
+      const response = await api.put(`/auth/api-keys/${id}`, keyData)
       return response.data
     },
+    delete: async (id) => {
+      return api.delete(`/auth/api-keys/${id}`)
+    },
     revoke: async (id) => {
-      return api.delete(`/admin/api-keys/${id}`)
+      return api.delete(`/auth/api-keys/${id}`)
     },
     updatePermissions: async (id, permissions) => {
-      const response = await api.put(`/admin/api-keys/${id}/permissions`, permissions)
+      const response = await api.put(`/auth/api-keys/${id}/permissions`, permissions)
       return response.data
     },
     getStats: async (id) => {
-      const response = await api.get(`/admin/api-keys/${id}/stats`)
+      const response = await api.get(`/auth/api-keys/${id}/usage`)
+      return response.data
+    },
+    getUsage: async (id) => {
+      const response = await api.get(`/auth/api-keys/${id}/usage`)
       return response.data
     }
   },
 
-  // Rate Limiting
+  // ========================================
+  // RATE LIMITING (Using correct /admin/ endpoints)
+  // ========================================
   rateLimits: {
+    getAll: async () => {
+      const response = await api.get('/admin/rate-limits')
+      return response.data
+    },
     getStats: async () => {
       const response = await api.get('/admin/rate-limits/stats')
       return response.data
@@ -66,18 +98,226 @@ export const adminService = {
       const response = await api.put('/admin/rate-limits/config', config)
       return response.data
     },
-    reset: async (identifier) => {
-      return api.post('/admin/rate-limits/reset', { identifier })
+    update: async (endpoint, config) => {
+      const response = await api.put(`/admin/rate-limits/${encodeURIComponent(endpoint)}`, config)
+      return response.data
+    },
+    reset: async (endpoint, identifier = null) => {
+      return api.post(`/admin/rate-limits/${encodeURIComponent(endpoint)}/reset`, { identifier })
     },
     resetAll: async () => {
       return api.post('/admin/rate-limits/reset-all')
     }
+  },
+
+  // ========================================
+  // CUSTOMER MANAGEMENT
+  // ========================================
+  customers: {
+    getAll: async (params = {}) => {
+      const response = await api.get('/customers', { params })
+      return response.data
+    },
+    getById: async (id) => {
+      const response = await api.get(`/customers/${id}`)
+      return response.data
+    },
+    create: async (customerData) => {
+      const response = await api.post('/customers', customerData)
+      return response.data
+    },
+    update: async (id, customerData) => {
+      const response = await api.put(`/customers/${id}`, customerData)
+      return response.data
+    },
+    delete: async (id) => {
+      return api.delete(`/customers/${id}`)
+    }
+  },
+
+  // ========================================
+  // CONTRACT MANAGEMENT
+  // ========================================
+  contracts: {
+    getAll: async (params = {}) => {
+      const response = await api.get('/contracts', { params })
+      return response.data
+    },
+    getById: async (id) => {
+      const response = await api.get(`/contracts/${id}`)
+      return response.data
+    },
+    create: async (contractData) => {
+      const response = await api.post('/contracts', contractData)
+      return response.data
+    },
+    update: async (id, contractData) => {
+      const response = await api.put(`/contracts/${id}`, contractData)
+      return response.data
+    },
+    delete: async (id) => {
+      return api.delete(`/contracts/${id}`)
+    }
+  },
+
+  // ========================================
+  // SYSTEM HEALTH & MONITORING
+  // ========================================
+  health: {
+    getOverview: async () => {
+      const response = await api.get('/health')
+      return response.data
+    },
+    getDetailed: async () => {
+      const response = await api.get('/health/detailed')
+      return response.data
+    },
+    getMetrics: async (timeRange = '1h') => {
+      const response = await api.get(`/health/metrics?range=${timeRange}`)
+      return response.data
+    },
+    getComponentStatus: async (component) => {
+      const response = await api.get(`/health/components/${component}`)
+      return response.data
+    }
+  },
+
+  // ========================================
+  // DIAGNOSTICS
+  // ========================================
+  diagnostics: {
+    getAll: async () => {
+      const response = await api.get('/diagnostics')
+      return response.data
+    },
+    runTest: async (testType, params = {}) => {
+      const response = await api.post('/diagnostics/run', { test_type: testType, ...params })
+      return response.data
+    },
+    getTestResults: async (testId) => {
+      const response = await api.get(`/diagnostics/results/${testId}`)
+      return response.data
+    }
+  },
+
+  // ========================================
+  // UTILITY METHODS
+  // ========================================
+  handleError(error, defaultMessage) {
+    console.error('Admin service error:', error)
+    
+    if (error.response) {
+      const status = error.response.status
+      const message = error.response.data?.message || error.response.data?.error || defaultMessage
+      
+      switch (status) {
+        case 400:
+          return new Error(`Bad Request: ${message}`)
+        case 401:
+          return new Error('Authentication required. Please log in again.')
+        case 403:
+          return new Error('Access denied. Insufficient permissions.')
+        case 404:
+          return new Error('Resource not found.')
+        case 409:
+          return new Error(`Conflict: ${message}`)
+        case 422:
+          return new Error(`Validation Error: ${message}`)
+        case 429:
+          return new Error('Too many requests. Please try again later.')
+        case 500:
+          return new Error('Internal server error. Please try again later.')
+        default:
+          return new Error(`Server Error (${status}): ${message}`)
+      }
+    } else if (error.request) {
+      return new Error('Network error. Please check your connection and try again.')
+    } else {
+      return new Error(error.message || defaultMessage)
+    }
+  },
+
+  // Helper method to format dates
+  formatDate(dateString) {
+    if (!dateString) return 'Never'
+    
+    const date = new Date(dateString)
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
+  },
+
+  // Helper method to format file sizes
+  formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes'
+    
+    const k = 1024
+    const dm = decimals < 0 ? 0 : decimals
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+    
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
+  },
+
+  // Helper method to validate email
+  isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  },
+
+  // Helper method to generate strong password
+  generatePassword(length = 12) {
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+    let password = ''
+    
+    for (let i = 0; i < length; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length))
+    }
+    
+    return password
+  },
+
+  // Helper method to check password strength
+  checkPasswordStrength(password) {
+    const minLength = 8
+    const hasLower = /[a-z]/.test(password)
+    const hasUpper = /[A-Z]/.test(password)
+    const hasNumbers = /\d/.test(password)
+    const hasSymbols = /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    
+    let score = 0
+    let feedback = []
+    
+    if (password.length >= minLength) score++
+    else feedback.push(`Password must be at least ${minLength} characters long`)
+    
+    if (hasLower) score++
+    else feedback.push('Password must contain lowercase letters')
+    
+    if (hasUpper) score++
+    else feedback.push('Password must contain uppercase letters')
+    
+    if (hasNumbers) score++
+    else feedback.push('Password must contain numbers')
+    
+    if (hasSymbols) score++
+    else feedback.push('Password must contain special characters')
+    
+    let strength = 'Very Weak'
+    if (score >= 4) strength = 'Strong'
+    else if (score >= 3) strength = 'Medium'
+    else if (score >= 2) strength = 'Weak'
+    
+    return {
+      score,
+      strength,
+      feedback
+    }
   }
 }
 
-// src/services/billing.js
-import api from './api'
-
+// ========================================
+// BILLING SERVICE (Preserved)
+// ========================================
 export const billingService = {
   // Service Tiers
   serviceTiers: {
@@ -147,9 +387,9 @@ export const billingService = {
   }
 }
 
-// src/services/security.js
-import api from './api'
-
+// ========================================
+// SECURITY SERVICE (Preserved)
+// ========================================
 export const securityService = {
   // SSH Keys
   sshKeys: {
@@ -255,9 +495,9 @@ export const securityService = {
   }
 }
 
-// Enhanced hardware.js
-import api from './api'
-
+// ========================================
+// HARDWARE SERVICE (Preserved)
+// ========================================
 export const hardwareService = {
   // NVR Management
   nvr: {
@@ -403,9 +643,9 @@ export const hardwareService = {
   }
 }
 
-// Enhanced monitoring.js
-import api from './api'
-
+// ========================================
+// MONITORING SERVICE (Preserved)
+// ========================================
 export const monitoringService = {
   // Security Events
   securityEvents: {
@@ -484,48 +724,12 @@ export const monitoringService = {
       const response = await api.get('/rf/jamming-events', { params })
       return response.data
     }
-  },
-
-  // System Health
-  health: {
-    getOverview: async () => {
-      const response = await api.get('/health')
-      return response.data
-    },
-    getDetailed: async () => {
-      const response = await api.get('/health/detailed')
-      return response.data
-    },
-    getMetrics: async (timeRange = '1h') => {
-      const response = await api.get(`/health/metrics?range=${timeRange}`)
-      return response.data
-    },
-    getComponentStatus: async (component) => {
-      const response = await api.get(`/health/components/${component}`)
-      return response.data
-    }
-  },
-
-  // Diagnostics
-  diagnostics: {
-    getAll: async () => {
-      const response = await api.get('/diagnostics')
-      return response.data
-    },
-    runTest: async (testType, params = {}) => {
-      const response = await api.post('/diagnostics/run', { test_type: testType, ...params })
-      return response.data
-    },
-    getTestResults: async (testId) => {
-      const response = await api.get(`/diagnostics/results/${testId}`)
-      return response.data
-    }
   }
 }
 
-// src/services/mappings.js
-import api from './api'
-
+// ========================================
+// MAPPING SERVICE (Preserved)
+// ========================================
 export const mappingService = {
   // Contract Mappings
   contracts: {
@@ -620,3 +824,6 @@ export const mappingService = {
     }
   }
 }
+
+// Export singleton instance for convenience methods
+export default adminService
