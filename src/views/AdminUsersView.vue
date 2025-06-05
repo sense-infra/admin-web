@@ -160,13 +160,7 @@
                       Locked
                     </span>
 
-                    <!-- Password Reset Required -->
-                    <span v-if="user.force_password_change" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                      <svg class="w-3 h-3 mr-1 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
-                      </svg>
-                      Password Reset
-                    </span>
+                    <!-- REMOVED: Password Reset Required badge as requested -->
                   </div>
                 </td>
 
@@ -192,6 +186,18 @@
                     >
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                      </svg>
+                    </button>
+
+                    <!-- Password Management Button -->
+                    <button 
+                      v-if="canEditUsers"
+                      @click="openPasswordModal(user)" 
+                      class="action-btn action-btn-purple"
+                      title="Manage password"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
                       </svg>
                     </button>
                     
@@ -249,6 +255,21 @@
       @close="closeModal"
       @saved="handleSaved"
     />
+
+    <!-- Password Management Modal -->
+    <PasswordManagementModal
+      v-if="showPasswordModal"
+      :user="selectedUserForPassword"
+      @close="closePasswordModal"
+      @updated="handlePasswordUpdated"
+    />
+
+    <!-- Change Own Password Modal -->
+    <ChangePasswordModal
+      v-if="showChangePasswordModal"
+      @close="closeChangePasswordModal"
+      @updated="handlePasswordUpdated"
+    />
   </div>
 </template>
 
@@ -257,6 +278,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 import UserFormModal from '@/components/admin/users/UserFormModal.vue'
+import PasswordManagementModal from '@/components/admin/users/PasswordManagementModal.vue'
+import ChangePasswordModal from '@/components/admin/users/ChangePasswordModal.vue'
 
 const authStore = useAuthStore()
 const users = ref([])
@@ -264,6 +287,9 @@ const loading = ref(false)
 const error = ref(null)
 const showModal = ref(false)
 const selectedUser = ref(null)
+const showPasswordModal = ref(false)
+const selectedUserForPassword = ref(null)
+const showChangePasswordModal = ref(false)
 
 // Permission checks based on current user's role
 const canCreateUsers = computed(() => {
@@ -372,13 +398,33 @@ const editUser = (user) => {
   showModal.value = true
 }
 
+const openPasswordModal = (user) => {
+  selectedUserForPassword.value = user
+  showPasswordModal.value = true
+}
+
 const closeModal = () => {
   showModal.value = false
   selectedUser.value = null
 }
 
+const closePasswordModal = () => {
+  showPasswordModal.value = false
+  selectedUserForPassword.value = null
+}
+
+const closeChangePasswordModal = () => {
+  showChangePasswordModal.value = false
+}
+
 const handleSaved = () => {
   closeModal()
+  fetchUsers()
+}
+
+const handlePasswordUpdated = () => {
+  closePasswordModal()
+  closeChangePasswordModal()
   fetchUsers()
 }
 
@@ -431,8 +477,18 @@ const permanentlyDeleteUser = async (user) => {
   }
 }
 
+// Show change password modal for current user
+const openChangeOwnPasswordModal = () => {
+  showChangePasswordModal.value = true
+}
+
 onMounted(() => {
   fetchUsers()
+})
+
+// Expose the change password function for the header component
+defineExpose({
+  openChangeOwnPasswordModal
 })
 </script>
 
@@ -443,6 +499,10 @@ onMounted(() => {
 
 .action-btn-blue {
   @apply text-blue-600 hover:bg-blue-50 focus:ring-blue-500;
+}
+
+.action-btn-purple {
+  @apply text-purple-600 hover:bg-purple-50 focus:ring-purple-500;
 }
 
 .action-btn-orange {
