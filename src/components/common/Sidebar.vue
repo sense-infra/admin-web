@@ -45,16 +45,72 @@
           Dashboard
         </router-link>
 
-        <router-link
-          to="/admin/users"
-          :class="navLinkClass('/admin')"
-          @click="$emit('close')"
-        >
-          <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-          </svg>
-          User Management
-        </router-link>
+        <!-- Admin Section -->
+        <div class="space-y-1">
+          <div
+            @click="toggleAdminMenu"
+            :class="[
+              'group flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors duration-200',
+              isAdminSectionActive() 
+                ? 'bg-gray-800 text-white' 
+                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+            ]"
+          >
+            <div class="flex items-center">
+              <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+              </svg>
+              Administration
+            </div>
+            <svg 
+              :class="[
+                'h-4 w-4 transition-transform duration-200',
+                showAdminMenu ? 'transform rotate-90' : ''
+              ]" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+          
+          <!-- Admin Submenu -->
+          <div v-show="showAdminMenu" class="ml-6 space-y-1">
+            <router-link
+              to="/admin/users"
+              :class="subNavLinkClass('/admin/users')"
+              @click="$emit('close')"
+            >
+              <svg class="mr-3 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              </svg>
+              User Management
+            </router-link>
+
+            <router-link
+              to="/admin/api-keys"
+              :class="subNavLinkClass('/admin/api-keys')"
+              @click="$emit('close')"
+            >
+              <svg class="mr-3 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v-2H7v-2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              API Keys
+            </router-link>
+
+            <router-link
+              to="/admin/rate-limits"
+              :class="subNavLinkClass('/admin/rate-limits')"
+              @click="$emit('close')"
+            >
+              <svg class="mr-3 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Rate Limits
+            </router-link>
+          </div>
+        </div>
 
         <router-link
           to="/customers"
@@ -117,7 +173,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 defineProps({
@@ -130,8 +186,24 @@ defineProps({
 defineEmits(['close'])
 
 const route = useRoute()
+const showAdminMenu = ref(false)
 
-// Helper function for nav link classes
+// Initialize admin menu state based on current route
+if (route.path.startsWith('/admin')) {
+  showAdminMenu.value = true
+}
+
+// Toggle admin menu
+const toggleAdminMenu = () => {
+  showAdminMenu.value = !showAdminMenu.value
+}
+
+// Check if admin section is active
+const isAdminSectionActive = () => {
+  return route.path.startsWith('/admin')
+}
+
+// Helper function for main nav link classes
 const navLinkClass = (path) => {
   const isActive = path === '/' ? route.path === path : route.path.startsWith(path)
   return [
@@ -141,4 +213,23 @@ const navLinkClass = (path) => {
       : 'text-gray-300 hover:bg-gray-700 hover:text-white'
   ]
 }
+
+// Helper function for sub nav link classes
+const subNavLinkClass = (path) => {
+  const isActive = route.path === path
+  return [
+    'group flex items-center px-3 py-2 text-xs font-medium rounded-md transition-colors duration-200',
+    isActive 
+      ? 'bg-gray-700 text-white' 
+      : 'text-gray-400 hover:bg-gray-600 hover:text-white'
+  ]
+}
+
+// Watch route changes to auto-expand admin menu
+computed(() => {
+  if (route.path.startsWith('/admin')) {
+    showAdminMenu.value = true
+  }
+  return route.path
+})
 </script>

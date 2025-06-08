@@ -7,6 +7,7 @@
         <p class="text-gray-600">Manage API keys for external system access</p>
       </div>
       <button
+        v-if="canManageAPIKeys"
         @click="showCreateModal = true"
         class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
       >
@@ -76,8 +77,8 @@
           </div>
           <div class="ml-5 w-0 flex-1">
             <dl>
-              <dt class="text-sm font-medium text-gray-500 truncate">Total Requests (30d)</dt>
-              <dd class="text-lg font-medium text-gray-900">{{ apiKeyStats.totalRequests }}</dd>
+              <dt class="text-sm font-medium text-gray-500 truncate">Total Usage</dt>
+              <dd class="text-lg font-medium text-gray-900">{{ formatNumber(apiKeyStats.totalUsage) }}</dd>
             </dl>
           </div>
         </div>
@@ -138,7 +139,7 @@
                 <div>
                   <div class="text-sm font-medium text-gray-900">{{ apiKey.key_name }}</div>
                   <div class="text-sm text-gray-500">{{ apiKey.description }}</div>
-                  <div class="text-xs text-gray-400">by {{ apiKey.creator?.username || 'Unknown' }}</div>
+                  <div class="text-xs text-gray-400">by {{ apiKey.created_by_user?.username || 'Unknown' }}</div>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
@@ -175,6 +176,7 @@
                     </svg>
                   </button>
                   <button
+                    v-if="canManageAPIKeys"
                     @click="editAPIKey(apiKey)"
                     class="text-blue-600 hover:text-blue-900"
                     title="Edit API Key"
@@ -184,6 +186,7 @@
                     </svg>
                   </button>
                   <button
+                    v-if="canManageAPIKeys"
                     @click="toggleAPIKeyStatus(apiKey)"
                     :class="apiKey.active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'"
                     :title="apiKey.active ? 'Deactivate API Key' : 'Activate API Key'"
@@ -196,6 +199,7 @@
                     </svg>
                   </button>
                   <button
+                    v-if="canManageAPIKeys"
                     @click="deleteAPIKey(apiKey)"
                     class="text-red-600 hover:text-red-900"
                     title="Delete API Key"
@@ -419,7 +423,7 @@
 
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-gray-50 p-4 rounded-lg">
-                <div class="text-2xl font-bold text-gray-900">{{ formatNumber(usageData.total_usage || 0) }}</div>
+                <div class="text-2xl font-bold text-gray-900">{{ formatNumber(usageData.total_requests || 0) }}</div>
                 <div class="text-sm text-gray-500">Total Requests</div>
               </div>
               <div class="bg-gray-50 p-4 rounded-lg">
@@ -429,7 +433,7 @@
             </div>
 
             <div v-if="usageData.daily_usage && usageData.daily_usage.length > 0">
-              <h5 class="font-medium text-gray-900 mb-2">Recent Usage (Last 30 Days)</h5>
+              <h5 class="font-medium text-gray-900 mb-2">Recent Usage</h5>
               <div class="space-y-2 max-h-40 overflow-y-auto">
                 <div 
                   v-for="day in usageData.daily_usage" 
@@ -437,7 +441,7 @@
                   class="flex justify-between text-sm"
                 >
                   <span>{{ formatDate(day.date) }}</span>
-                  <span class="font-medium">{{ day.request_count }} requests</span>
+                  <span class="font-medium">{{ day.requests || day.request_count || 0 }} requests</span>
                 </div>
               </div>
             </div>
@@ -551,7 +555,11 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { adminService } from '@/services/admin'
+import { useAuthStore } from '@/stores/auth'
+import { apiKeyService, apiKeyUtils } from '@/services/apiKeys'
+
+// Store
+const authStore = useAuthStore()
 
 // Reactive data
 const loading = ref(false)
@@ -588,13 +596,19 @@ const editForm = ref({
 })
 
 // Computed properties
+const canManageAPIKeys = computed(() => {
+  return authStore.hasPermission('api_keys', 'create') || 
+         authStore.hasPermission('api_keys', 'update') ||
+         authStore.user?.role?.name === 'admin'
+})
+
 const apiKeyStats = computed(() => {
   const total = apiKeys.value.length
-  const active = apiKeys.value.filter(key => key.active && !isExpired(key)).length
-  const expiring = apiKeys.value.filter(key => isExpiringSoon(key)).length
-  const totalRequests = apiKeys.value.reduce((sum, key) => sum + (key.usage_count || 0), 0)
+  const active = apiKeys.value.filter(key => key.active && !apiKeyUtils.isExpired(key)).length
+  const expiring = apiKeys.value.filter(key => apiKeyUtils.isExpiringSoon(key)).length
+  const totalUsage = apiKeys.value.reduce((sum, key) => sum + (key.usage_count || 0), 0)
   
-  return { total, active, expiring, totalRequests }
+  return { total, active, expiring, totalUsage }
 })
 
 // Methods
@@ -603,9 +617,9 @@ const loadAPIKeys = async () => {
   error.value = ''
   
   try {
-    apiKeys.value = await adminService.apiKeys.getAll()
+    apiKeys.value = await apiKeyService.apiKeys.getAll()
   } catch (err) {
-    error.value = err.message
+    error.value = apiKeyUtils.formatError(err)
   } finally {
     loading.value = false
   }
@@ -614,9 +628,26 @@ const loadAPIKeys = async () => {
 const handleCreateAPIKey = async () => {
   createLoading.value = true
   createError.value = ''
-  
+
   try {
-    const response = await adminService.apiKeys.create(createForm.value)
+    console.log('Creating API key with data:', createForm.value)
+    
+    // Make sure the field names match your backend expectations
+    const requestData = {
+      key_name: createForm.value.key_name,
+      description: createForm.value.description || null,
+      rate_limit_per_hour: createForm.value.rate_limit_per_hour || 1000,
+      // Add any other fields your backend expects
+      permissions: null, // or some default permissions
+      contract_access: null, // or some default contract access
+      expires_at: null // or set an expiration date
+    }
+    
+    console.log('Sending request data:', requestData)
+    
+    const response = await apiKeyService.apiKeys.create(requestData)
+    console.log('API key creation response:', response)
+    
     newAPIKeyData.value = response
     await loadAPIKeys()
     showCreateModal.value = false
@@ -626,7 +657,11 @@ const handleCreateAPIKey = async () => {
       rate_limit_per_hour: 1000
     }
   } catch (err) {
-    createError.value = err.message
+    console.error('Full error object:', err)
+    console.error('Error response:', err.response)
+    console.error('Error response data:', err.response?.data)
+    
+    createError.value = apiKeyUtils.formatError(err)
   } finally {
     createLoading.value = false
   }
@@ -647,12 +682,12 @@ const handleUpdateAPIKey = async () => {
   editLoading.value = true
   
   try {
-    await adminService.apiKeys.update(selectedAPIKey.value.api_key_id, editForm.value)
+    await apiKeyService.apiKeys.update(selectedAPIKey.value.api_key_id, editForm.value)
     await loadAPIKeys()
     showEditModal.value = false
     selectedAPIKey.value = null
   } catch (err) {
-    alert('Failed to update API key: ' + err.message)
+    alert('Failed to update API key: ' + apiKeyUtils.formatError(err))
   } finally {
     editLoading.value = false
   }
@@ -664,18 +699,19 @@ const viewUsage = async (apiKey) => {
   usageData.value = null
   
   try {
-    usageData.value = await adminService.apiKeys.getUsage(apiKey.api_key_id)
+    usageData.value = await apiKeyService.apiKeys.getUsage(apiKey.api_key_id)
   } catch (err) {
     console.error('Failed to load usage data:', err)
+    usageData.value = { total_requests: apiKey.usage_count || 0, last_used: apiKey.last_used }
   }
 }
 
 const toggleAPIKeyStatus = async (apiKey) => {
   try {
-    await adminService.apiKeys.update(apiKey.api_key_id, { active: !apiKey.active })
+    await apiKeyService.apiKeys.update(apiKey.api_key_id, { active: !apiKey.active })
     await loadAPIKeys()
   } catch (err) {
-    alert('Failed to update API key status: ' + err.message)
+    alert('Failed to update API key status: ' + apiKeyUtils.formatError(err))
   }
 }
 
@@ -688,12 +724,12 @@ const confirmDelete = async () => {
   deleteLoading.value = true
   
   try {
-    await adminService.apiKeys.delete(selectedAPIKey.value.api_key_id)
+    await apiKeyService.apiKeys.delete(selectedAPIKey.value.api_key_id)
     await loadAPIKeys()
     showDeleteModal.value = false
     selectedAPIKey.value = null
   } catch (err) {
-    alert('Failed to delete API key: ' + err.message)
+    alert('Failed to delete API key: ' + apiKeyUtils.formatError(err))
   } finally {
     deleteLoading.value = false
   }
@@ -717,68 +753,10 @@ const closeNewAPIKeyModal = () => {
 }
 
 // Helper functions
-const getAPIKeyStatus = (apiKey) => {
-  if (isExpired(apiKey)) return 'Expired'
-  if (!apiKey.active) return 'Inactive'
-  if (isExpiringSoon(apiKey)) return 'Expiring Soon'
-  return 'Active'
-}
-
-const isExpired = (apiKey) => {
-  return apiKey.expires_at && new Date(apiKey.expires_at) < new Date()
-}
-
-const isExpiringSoon = (apiKey) => {
-  if (!apiKey.expires_at) return false
-  const expiryDate = new Date(apiKey.expires_at)
-  const now = new Date()
-  const daysUntilExpiry = (expiryDate - now) / (1000 * 60 * 60 * 24)
-  return daysUntilExpiry > 0 && daysUntilExpiry <= 30
-}
-
-const getStatusColor = (apiKey) => {
-  const status = getAPIKeyStatus(apiKey)
-  switch (status) {
-    case 'Active':
-      return 'bg-green-100 text-green-800'
-    case 'Inactive':
-      return 'bg-gray-100 text-gray-800'
-    case 'Expired':
-      return 'bg-red-100 text-red-800'
-    case 'Expiring Soon':
-      return 'bg-yellow-100 text-yellow-800'
-    default:
-      return 'bg-gray-100 text-gray-800'
-  }
-}
-
-const formatDate = (dateString) => {
-  if (!dateString) return 'Never'
-  
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now - date
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  
-  if (diffDays === 0) {
-    return 'Today'
-  } else if (diffDays === 1) {
-    return 'Yesterday'
-  } else if (diffDays < 7) {
-    return `${diffDays} days ago`
-  } else {
-    return date.toLocaleDateString()
-  }
-}
-
-const formatNumber = (num) => {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M'
-  } else if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K'
-  }
-  return num?.toString() || '0'
-}
+const getAPIKeyStatus = apiKeyUtils.getStatus
+const getStatusColor = apiKeyUtils.getStatusColor
+const formatDate = apiKeyUtils.formatDate
+const formatNumber = apiKeyUtils.formatNumber
 
 // Lifecycle
 onMounted(() => {

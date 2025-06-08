@@ -15,6 +15,57 @@ export const useAuthStore = defineStore('auth', () => {
     setAuthToken(token.value)
   }
 
+  // Permission checking function - supports multiple parameter formats
+  const hasPermission = (resource, action = null) => {
+    if (!user.value) return false
+    
+    // If user is admin, grant all permissions
+    if (user.value.role?.name === 'admin' || user.value.role === 'admin' || user.value.is_admin) {
+      return true
+    }
+    
+    // Handle different permission formats
+    let permissionToCheck = resource
+    if (action) {
+      // Format: hasPermission('api_keys', 'create') -> 'api_keys:create'
+      permissionToCheck = `${resource}:${action}`
+    }
+    
+    // Check if user has specific permission in various formats
+    if (user.value.permissions && Array.isArray(user.value.permissions)) {
+      // Check exact match
+      if (user.value.permissions.includes(permissionToCheck)) {
+        return true
+      }
+      
+      // Check with different formats
+      if (action) {
+        const alternativeFormats = [
+          `${resource}.${action}`,  // api_keys.create
+          `${resource}_${action}`,  // api_keys_create
+          `${action}_${resource}`,  // create_api_keys
+          resource,                 // just api_keys (broad permission)
+          action                    // just create (broad permission)
+        ]
+        
+        for (const format of alternativeFormats) {
+          if (user.value.permissions.includes(format)) {
+            return true
+          }
+        }
+      }
+    }
+    
+    // Check role-based permissions
+    if (user.value.role?.permissions && Array.isArray(user.value.role.permissions)) {
+      return user.value.role.permissions.includes(permissionToCheck)
+    }
+    
+    // For now, grant access to all authenticated users for basic operations
+    // You can modify this based on your permission system
+    return isAuthenticated.value
+  }
+
   const login = async (credentials) => {
     loading.value = true
     error.value = null
@@ -129,6 +180,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     error,
     isAuthenticated,
+    hasPermission, // Export the enhanced hasPermission function
     login,
     logout,
     checkAuth,
