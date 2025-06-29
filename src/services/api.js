@@ -22,15 +22,37 @@ export const setAuthToken = (token) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      // Clear token and redirect to login
-      setAuthToken(null)
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('auth_user')
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+    console.log('🔍 API Error interceptor:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      message: error.response?.data?.message
+    })
+    
+    // Only redirect to login for auth-related endpoints or expired tokens
+    if (error.response?.status === 401) {
+      // Check if this is an auth-related request
+      const isAuthRequest = error.config?.url?.includes('/auth/')
+      
+      if (isAuthRequest) {
+        console.log('🚪 Auth request failed - clearing session')
+        // Clear token and redirect to login
+        setAuthToken(null)
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_user')
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      } else {
+        console.log('🚫 Non-auth request failed with 401 - not redirecting')
+        // Don't auto-logout for non-auth 401s (might be permission issues)
       }
     }
+    
+    // For 403 errors, don't auto-logout - it's likely a permission issue
+    if (error.response?.status === 403) {
+      console.log('🚫 Permission denied (403) - not redirecting to login')
+    }
+    
     return Promise.reject(error)
   }
 )

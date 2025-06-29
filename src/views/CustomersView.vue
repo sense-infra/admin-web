@@ -535,9 +535,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { customerService, customerUtils } from '@/services/customers'
+import { useRoute } from 'vue-router'
 
 // Store
 const authStore = useAuthStore()
+
+// Routes
+const route = useRoute()
 
 // Reactive data
 const loading = ref(false)
@@ -770,8 +774,17 @@ const formatDate = (dateString) => {
   }
 }
 
-// Lifecycle
-onMounted(() => {
-  loadCustomers()
+onMounted(async () => {
+  await loadCustomers() // Your existing load function
+  
+  // Check if there's a view parameter
+  const viewId = route.query.view
+  if (viewId) {
+    // Find the customer and open the view modal
+    const customer = customers.value.find(c => c.customer_id === parseInt(viewId))
+    if (customer) {
+      viewCustomer(customer) // Your existing view function
+    }
+  }
 })
 </script>

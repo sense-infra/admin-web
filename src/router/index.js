@@ -19,8 +19,7 @@ const routes = [
         component: () => import('@/views/Dashboard.vue'),
         meta: { title: 'Dashboard' }
       },
-      
-      // User Management Routes (will create these components)
+      // User Management Routes
       {
         path: '/admin',
         name: 'Admin',
@@ -45,7 +44,6 @@ const routes = [
         component: () => import('@/views/RateLimitsView.vue'),
         meta: { title: 'Rate Limit Management' }
       },
-
       // Customer Management Routes
       {
         path: '/customers',
@@ -53,7 +51,6 @@ const routes = [
         component: () => import('@/views/CustomersView.vue'),
         meta: { title: 'Customer Management' }
       },
-
       // Contract Management Routes
       {
         path: '/contracts',
@@ -61,8 +58,14 @@ const routes = [
         component: () => import('@/views/ContractsView.vue'),
         meta: { title: 'Contract Management' }
       },
-
-      // Hardware Management Routes (will create these)
+      // Service Tier Management Routes
+      {
+        path: '/service-tiers',
+        name: 'ServiceTiers',
+        component: () => import('@/views/ServiceTiersView.vue'),
+        meta: { title: 'Service Tier Management' }
+      },
+      // Hardware Management Routes
       {
         path: '/hardware',
         name: 'Hardware',
@@ -75,8 +78,7 @@ const routes = [
         component: () => import('@/views/HardwareOverviewView.vue'),
         meta: { title: 'Hardware Overview' }
       },
-
-      // Monitoring Routes (will create these)
+      // Monitoring Routes
       {
         path: '/monitoring',
         name: 'Monitoring',
@@ -89,7 +91,6 @@ const routes = [
         component: () => import('@/views/SystemMonitoringView.vue'),
         meta: { title: 'System Status' }
       },
-
       // Diagnostics Route
       {
         path: '/diagnostics',
@@ -113,7 +114,6 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
-  
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
   } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
