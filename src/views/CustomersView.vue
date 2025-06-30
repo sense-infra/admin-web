@@ -19,7 +19,7 @@
     </div>
 
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
       <div class="bg-white rounded-lg shadow p-6">
         <div class="flex items-center">
           <div class="flex-shrink-0">
@@ -63,6 +63,22 @@
             <dl>
               <dt class="text-sm font-medium text-gray-500 truncate">With Email</dt>
               <dd class="text-lg font-medium text-gray-900">{{ customersWithEmail }}</dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <svg class="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+          </div>
+          <div class="ml-5 w-0 flex-1">
+            <dl>
+              <dt class="text-sm font-medium text-gray-500 truncate">With Contracts</dt>
+              <dd class="text-lg font-medium text-gray-900">{{ customersWithContracts }}</dd>
             </dl>
           </div>
         </div>
@@ -134,6 +150,9 @@
                 Address
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Contracts
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Created
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -162,6 +181,36 @@
               <td class="px-6 py-4">
                 <div class="text-sm text-gray-900 max-w-xs truncate" :title="customer.address">
                   {{ customer.address }}
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="text-sm text-gray-900">
+                  <template v-if="getCustomerContracts(customer.customer_id).length > 0">
+                    <template v-for="(contract, index) in getCustomerContracts(customer.customer_id)" :key="contract.contract_id">
+                      <div class="mb-1" v-if="index < 2">
+                        <router-link
+                          :to="`/contracts?view=${contract.contract_id}`"
+                          class="text-blue-600 hover:text-blue-800 hover:underline text-xs font-medium block truncate max-w-xs"
+                          :title="`View contract for ${contract.service_address}`"
+                        >
+                          {{ contract.service_address }}
+                        </router-link>
+                        <div class="text-xs text-gray-500">
+                          <span :class="[
+                            'inline-block px-1 py-0.5 rounded text-xs',
+                            getContractStatus(contract.start_date, contract.end_date).status === 'active' ? 'bg-green-100 text-green-800' :
+                            getContractStatus(contract.start_date, contract.end_date).status === 'expired' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
+                          ]">
+                            {{ getContractStatus(contract.start_date, contract.end_date).label }}
+                          </span>
+                        </div>
+                      </div>
+                    </template>
+                    <div v-if="getCustomerContracts(customer.customer_id).length > 2" class="text-xs text-gray-500">
+                      +{{ getCustomerContracts(customer.customer_id).length - 2 }} more contracts
+                    </div>
+                  </template>
+                  <span v-else class="text-gray-400 italic text-xs">No contracts</span>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -439,7 +488,7 @@
 
     <!-- View Customer Modal -->
     <div v-if="showViewModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-10 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+      <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-medium text-gray-900">Customer Details</h3>
           <button
@@ -464,11 +513,53 @@
                 <div><strong>Phone:</strong> {{ selectedCustomer.phone_number || 'Not provided' }}</div>
               </div>
             </div>
-            
+
             <div>
               <h4 class="font-medium text-gray-900 mb-2">Address</h4>
               <div class="text-sm text-gray-600">
                 {{ selectedCustomer.address }}
+              </div>
+            </div>
+
+            <!-- Customer Contracts Section -->
+            <div>
+              <h4 class="font-medium text-gray-900 mb-2">Associated Contracts</h4>
+              <div class="text-sm">
+                <template v-if="getCustomerContracts(selectedCustomer.customer_id).length > 0">
+                  <div class="space-y-2">
+                    <div 
+                      v-for="contract in getCustomerContracts(selectedCustomer.customer_id)" 
+                      :key="contract.contract_id"
+                      class="border border-gray-200 rounded p-3"
+                    >
+                      <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                          <router-link
+                            :to="`/contracts?view=${contract.contract_id}`"
+                            class="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                            :title="`View contract for ${contract.service_address}`"
+                          >
+                            {{ contract.service_address }}
+                          </router-link>
+                          <div class="text-xs text-gray-500 mt-1">
+                            Contract #{{ contract.contract_id }}
+                          </div>
+                          <div class="text-xs text-gray-500">
+                            {{ formatDate(contract.start_date) }} - {{ formatDate(contract.end_date) }}
+                          </div>
+                        </div>
+                        <span :class="[
+                          'inline-block px-2 py-1 rounded text-xs',
+                          getContractStatus(contract.start_date, contract.end_date).status === 'active' ? 'bg-green-100 text-green-800' :
+                          getContractStatus(contract.start_date, contract.end_date).status === 'expired' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
+                        ]">
+                          {{ getContractStatus(contract.start_date, contract.end_date).label }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <span v-else class="text-gray-400 italic">No contracts associated with this customer</span>
               </div>
             </div>
 
@@ -536,6 +627,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { customerService, customerUtils } from '@/services/customers'
 import { useRoute } from 'vue-router'
+import api from '@/services/api'
 
 // Store
 const authStore = useAuthStore()
@@ -547,6 +639,7 @@ const route = useRoute()
 const loading = ref(false)
 const error = ref('')
 const customers = ref([])
+const contracts = ref([])  // Add contracts data
 const searchQuery = ref('')
 
 // Modal states
@@ -591,7 +684,7 @@ const filteredCustomers = computed(() => {
   if (!searchQuery.value) {
     return customers.value
   }
-  
+
   const query = searchQuery.value.toLowerCase()
   return customers.value.filter(customer =>
     customer.name_on_contract.toLowerCase().includes(query) ||
@@ -604,14 +697,20 @@ const filteredCustomers = computed(() => {
 const recentCustomers = computed(() => {
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-  
-  return customers.value.filter(customer => 
+
+  return customers.value.filter(customer =>
     new Date(customer.created_at) >= thirtyDaysAgo
   ).length
 })
 
 const customersWithEmail = computed(() => {
   return customers.value.filter(customer => customer.email).length
+})
+
+const customersWithContracts = computed(() => {
+  return customers.value.filter(customer => 
+    getCustomerContracts(customer.customer_id).length > 0
+  ).length
 })
 
 const isCreateFormValid = computed(() => {
@@ -638,6 +737,44 @@ const loadCustomers = async () => {
     console.error('Failed to load customers:', err)
   } finally {
     loading.value = false
+  }
+}
+
+// Load contracts for the customer-contract mapping
+const loadContracts = async () => {
+  try {
+    const response = await api.get('/contracts')
+    contracts.value = Array.isArray(response.data) ? response.data : []
+  } catch (err) {
+    console.error('Failed to load contracts:', err)
+    contracts.value = []
+  }
+}
+
+// Get contracts for a specific customer
+const getCustomerContracts = (customerId) => {
+  return contracts.value.filter(contract => {
+    // Handle both possible data structures from your contracts
+    if (contract.customers && Array.isArray(contract.customers)) {
+      return contract.customers.some(customer => customer.customer_id === customerId)
+    }
+    // Fallback for single customer structure
+    return contract.customer_id === customerId
+  })
+}
+
+// Contract status helper (reused from ContractsView)
+const getContractStatus = (startDate, endDate) => {
+  const now = new Date()
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+
+  if (now < start) {
+    return { status: 'upcoming', label: 'Upcoming' }
+  } else if (now > end) {
+    return { status: 'expired', label: 'Expired' }
+  } else {
+    return { status: 'active', label: 'Active' }
   }
 }
 
@@ -683,6 +820,7 @@ const handleCreateCustomer = async () => {
     console.log('Customer creation response:', response)
 
     await loadCustomers()
+    await loadContracts() // Reload contracts to update relationships
     closeCreateModal()
   } catch (err) {
     console.error('Customer creation failed:', err)
@@ -726,6 +864,7 @@ const handleUpdateCustomer = async () => {
 
     await customerService.customers.update(selectedCustomer.value.customer_id, editForm.value)
     await loadCustomers()
+    await loadContracts() // Reload contracts to update relationships
     closeEditModal()
   } catch (err) {
     console.error('Customer update failed:', err)
@@ -746,6 +885,7 @@ const confirmDelete = async () => {
   try {
     await customerService.customers.delete(selectedCustomer.value.customer_id)
     await loadCustomers()
+    await loadContracts() // Reload contracts to update relationships
     showDeleteModal.value = false
     selectedCustomer.value = null
   } catch (err) {
@@ -758,7 +898,7 @@ const confirmDelete = async () => {
 // Helper functions
 const formatDate = (dateString) => {
   if (!dateString) return 'Never'
-  
+
   try {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', {
@@ -775,15 +915,19 @@ const formatDate = (dateString) => {
 }
 
 onMounted(async () => {
-  await loadCustomers() // Your existing load function
-  
+  // Load both customers and contracts
+  await Promise.allSettled([
+    loadCustomers(),
+    loadContracts()
+  ])
+
   // Check if there's a view parameter
   const viewId = route.query.view
   if (viewId) {
     // Find the customer and open the view modal
     const customer = customers.value.find(c => c.customer_id === parseInt(viewId))
     if (customer) {
-      viewCustomer(customer) // Your existing view function
+      viewCustomer(customer)
     }
   }
 })

@@ -696,9 +696,14 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
+// Add this import to the existing script setup section
+import { useRoute } from 'vue-router'
 
 // Store
 const authStore = useAuthStore()
+
+// Add this after your existing reactive data declarations
+const route = useRoute()
 
 // Reactive data
 const loading = ref(false)
@@ -1112,7 +1117,7 @@ const getDaysUntilExpiry = (endDate) => {
   return diffDays
 }
 
-// Lifecycle
+// Update your onMounted function to include the view parameter check
 onMounted(async () => {
   console.log('ContractsView mounted')
 
@@ -1140,5 +1145,15 @@ onMounted(async () => {
     loadCustomers(),
     loadServiceTiers()
   ])
+
+  // 🆕 ADD THIS: Check if there's a view parameter
+  const viewId = route.query.view
+  if (viewId) {
+    // Find the contract and open the view modal
+    const contract = contracts.value.find(c => c.contract_id === parseInt(viewId))
+    if (contract) {
+      viewContract(contract) // Your existing view function
+    }
+  }
 })
 </script>

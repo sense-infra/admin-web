@@ -2,12 +2,12 @@
   <div class="min-h-screen bg-gray-50 flex">
     <!-- Sidebar -->
     <Sidebar :is-open="sidebarOpen" @close="sidebarOpen = false" />
-    
+
     <!-- Main content area -->
-    <div class="flex-1 flex flex-col lg:ml-64">
+    <div class="flex-1 flex flex-col">
       <!-- Header -->
       <Header @toggle-sidebar="sidebarOpen = !sidebarOpen" />
-      
+
       <!-- Page content -->
       <main class="flex-1 py-6 px-4 sm:px-6 lg:px-8">
         <router-view />
