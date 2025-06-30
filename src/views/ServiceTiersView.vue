@@ -130,58 +130,104 @@
                   {{ searchQuery ? 'No service tiers match your search' : 'No service tiers found' }}
                 </td>
               </tr>
-              <tr v-else v-for="tier in filteredServiceTiers" :key="tier.service_tier_id" class="table-row">
-                <td class="table-cell">
-                  <div>
-                    <div class="text-sm font-medium text-gray-900">{{ tier.name }}</div>
-                    <div class="text-xs text-gray-400">#{{ tier.service_tier_id }}</div>
-                  </div>
-                </td>
-                <td class="table-cell">
-                  <div class="text-sm text-gray-900 max-w-xs">
-                    {{ tier.description || 'No description' }}
-                  </div>
-                </td>
-                <td class="table-cell">
-                  <div class="text-sm text-gray-900 max-w-xs">
-                    {{ formatConfig(tier.config) }}
-                  </div>
-                </td>
-                <td class="table-cell">{{ formatDate(tier.created_at) }}</td>
-                <td class="table-cell">{{ formatDate(tier.updated_at) }}</td>
-                <td class="table-cell">
-                  <div class="flex items-center gap-2">
-                    <button
-                      @click="viewServiceTier(tier)"
-                      class="text-green-600 hover:text-green-900"
-                      title="View Service Tier"
-                    >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                      </svg>
-                    </button>
-                    <button
-                      @click="editServiceTier(tier)"
-                      class="text-blue-600 hover:text-blue-900"
-                      title="Edit Service Tier"
-                    >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                      </svg>
-                    </button>
-                    <button
-                      @click="deleteServiceTier(tier)"
-                      class="text-red-600 hover:text-red-900"
-                      title="Delete Service Tier"
-                    >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              <template v-else v-for="tier in filteredServiceTiers" :key="tier.service_tier_id">
+                <!-- Main row -->
+                <tr class="table-row">
+                  <td class="table-cell">
+                    <div>
+                      <div class="text-sm font-medium text-gray-900">{{ tier.name }}</div>
+                      <div class="text-xs text-gray-400">#{{ tier.service_tier_id }}</div>
+                    </div>
+                  </td>
+                  <td class="table-cell">
+                    <div class="text-sm text-gray-900 max-w-xs">
+                      {{ tier.description || 'No description' }}
+                    </div>
+                  </td>
+                  <td class="table-cell">
+                    <div class="flex items-center gap-2">
+                      <div class="text-sm text-gray-900 max-w-xs">
+                        {{ formatConfigSummary(tier.config) }}
+                      </div>
+                      <button
+                        v-if="tier.config"
+                        @click="toggleConfigExpansion(tier.service_tier_id)"
+                        class="text-blue-600 hover:text-blue-900 focus:outline-none"
+                        :title="expandedConfigs[tier.service_tier_id] ? 'Collapse' : 'Expand'"
+                      >
+                        <svg 
+                          class="w-4 h-4 transition-transform duration-200" 
+                          :class="{ 'transform rotate-180': expandedConfigs[tier.service_tier_id] }"
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                  <td class="table-cell">{{ formatDate(tier.created_at) }}</td>
+                  <td class="table-cell">{{ formatDate(tier.updated_at) }}</td>
+                  <td class="table-cell">
+                    <div class="flex items-center gap-2">
+                      <button
+                        @click="viewServiceTier(tier)"
+                        class="text-green-600 hover:text-green-900"
+                        title="View Service Tier"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                      </button>
+                      <button
+                        @click="editServiceTier(tier)"
+                        class="text-blue-600 hover:text-blue-900"
+                        title="Edit Service Tier"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                      </button>
+                      <button
+                        @click="deleteServiceTier(tier)"
+                        class="text-red-600 hover:text-red-900"
+                        title="Delete Service Tier"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                
+                <!-- Expanded configuration row -->
+                <tr v-if="expandedConfigs[tier.service_tier_id]" class="table-row bg-gray-50">
+                  <td colspan="6" class="table-cell">
+                    <div class="py-4 px-6">
+                      <div class="mb-2">
+                        <span class="text-sm font-medium text-gray-700">Full Configuration:</span>
+                      </div>
+                      <div class="bg-white border rounded-lg p-4 overflow-auto max-h-96">
+                        <pre class="text-xs text-gray-800 whitespace-pre-wrap font-mono">{{ formatConfigForDisplay(tier.config) }}</pre>
+                      </div>
+                      <div class="mt-3 flex justify-end">
+                        <button
+                          @click="copyToClipboard(formatConfigForDisplay(tier.config))"
+                          class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                        >
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                          </svg>
+                          Copy JSON
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -427,6 +473,11 @@
         </div>
       </div>
     </div>
+
+    <!-- Copy Success Toast -->
+    <div v-if="showCopyToast" class="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50">
+      Configuration copied to clipboard!
+    </div>
   </div>
 </template>
 
@@ -447,6 +498,8 @@ const loading = ref(false)
 const error = ref('')
 const serviceTiers = ref([])
 const searchQuery = ref('')
+const expandedConfigs = ref({})
+const showCopyToast = ref(false)
 
 // Modal states
 const showCreateModal = ref(false)
@@ -538,6 +591,38 @@ const loadServiceTiers = async () => {
 
 const clearFilters = () => {
   searchQuery.value = ''
+}
+
+// Config expansion methods
+const toggleConfigExpansion = (tierId) => {
+  expandedConfigs.value[tierId] = !expandedConfigs.value[tierId]
+}
+
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    showCopyToast.value = true
+    setTimeout(() => {
+      showCopyToast.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err)
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    document.body.appendChild(textArea)
+    textArea.select()
+    try {
+      document.execCommand('copy')
+      showCopyToast.value = true
+      setTimeout(() => {
+        showCopyToast.value = false
+      }, 2000)
+    } catch (fallbackErr) {
+      console.error('Fallback copy failed:', fallbackErr)
+    }
+    document.body.removeChild(textArea)
+  }
 }
 
 // Template management
@@ -695,6 +780,42 @@ const formatDate = (dateString) => {
   }
 }
 
+const formatConfigSummary = (config) => {
+  if (!config) return 'No configuration'
+
+  try {
+    const parsed = typeof config === 'string' ? JSON.parse(config) : config
+
+    if (Object.keys(parsed).length === 0) {
+      return 'No configuration'
+    }
+
+    // Format common config fields for summary
+    const summary = []
+
+    if (parsed.response_time_sla) {
+      summary.push(`SLA: ${parsed.response_time_sla}`)
+    }
+    if (parsed.priority_level) {
+      summary.push(`Priority: ${parsed.priority_level}`)
+    }
+    if (parsed.max_cameras) {
+      summary.push(`Cameras: ${parsed.max_cameras}`)
+    }
+    if (parsed.rf_frequencies) {
+      summary.push(`RF: ${parsed.rf_frequencies}`)
+    }
+
+    if (summary.length > 0) {
+      return summary.slice(0, 2).join(', ') + (summary.length > 2 ? '...' : '')
+    }
+
+    return `${Object.keys(parsed).length} settings`
+  } catch (error) {
+    return 'Invalid configuration'
+  }
+}
+
 const formatConfig = (config) => {
   if (!config) return 'No configuration'
 
@@ -742,15 +863,15 @@ const formatConfigForDisplay = (config) => {
 }
 
 onMounted(async () => {
-  await loadServiceTiers() // Your existing load function
-  
+  await loadServiceTiers()
+
   // Check if there's a view parameter
   const viewId = route.query.view
   if (viewId) {
     // Find the service tier and open the view modal
     const tier = serviceTiers.value.find(t => t.service_tier_id === parseInt(viewId))
     if (tier) {
-      viewServiceTier(tier) // Your existing view function
+      viewServiceTier(tier)
     }
   }
 })
