@@ -1,247 +1,247 @@
 <template>
-  <div>
-    <!-- Mobile sidebar overlay -->
-    <div
-      v-if="isOpen"
-      class="fixed inset-0 z-40 lg:hidden"
-      @click="$emit('close')"
-    >
-      <div class="fixed inset-0 bg-gray-600 bg-opacity-75"></div>
-    </div>
-    
-    <!-- Sidebar -->
-    <div
-      :class="[
-        'fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 transform transition-transform duration-300 ease-in-out',
-        'lg:transform-none lg:static lg:inset-0',
-        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      ]"
-    >
-      <!-- Logo -->
-      <div class="flex items-center justify-center h-16 px-4 bg-gray-800">
+  <div class="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0">
+    <div class="flex flex-col flex-grow bg-gray-800 pt-5 pb-4 overflow-y-auto">
+      <div class="flex items-center flex-shrink-0 px-4">
         <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <svg class="h-8 w-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
             </svg>
           </div>
-          <div class="ml-3">
-            <h1 class="text-xl font-bold text-white">Sense Security</h1>
-            <p class="text-xs text-gray-400">Admin Panel</p>
-          </div>
+          <h1 class="ml-3 text-xl font-bold text-white">Sense Security</h1>
         </div>
       </div>
       
-      <!-- Navigation -->
-      <nav class="mt-8 px-4 space-y-2">
-        <router-link
-          to="/"
-          :class="navLinkClass('/')"
-          @click="$emit('close')"
-        >
-          <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-          </svg>
-          Dashboard
-        </router-link>
-
-        <!-- Admin Section -->
-        <div class="space-y-1">
-          <div
-            @click="toggleAdminMenu"
-            :class="[
-              'group flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors duration-200',
-              isAdminSectionActive() 
-                ? 'bg-gray-800 text-white' 
-                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-            ]"
+      <nav class="mt-8 flex-1 flex flex-col divide-y divide-gray-700 overflow-y-auto" aria-label="Sidebar">
+        <div class="px-2 space-y-1">
+          <!-- Dashboard -->
+          <router-link
+            to="/"
+            :class="getLinkClass('Dashboard')"
           >
-            <div class="flex items-center">
-              <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
-              </svg>
-              Administration
-            </div>
-            <svg 
-              :class="[
-                'h-4 w-4 transition-transform duration-200',
-                showAdminMenu ? 'transform rotate-90' : ''
-              ]" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2v0"></path>
             </svg>
+            Dashboard
+          </router-link>
+
+          <!-- Administration Section -->
+          <div v-if="canAccessAdmin" class="pt-6">
+            <h3 class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Administration
+            </h3>
+            <div class="mt-2 space-y-1">
+              <!-- User Management -->
+              <router-link
+                v-if="canManageUsers"
+                to="/admin/users"
+                :class="getLinkClass('AdminUsers')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+                </svg>
+                User Management
+              </router-link>
+
+              <!-- Role Management -->
+              <router-link
+                v-if="canManageRoles"
+                to="/admin/roles"
+                :class="getLinkClass('AdminRoles')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
+                Role Management
+              </router-link>
+
+              <!-- API Key Management -->
+              <router-link
+                v-if="canManageAPIKeys"
+                to="/admin/api-keys"
+                :class="getLinkClass('APIKeys')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1021 9z"></path>
+                </svg>
+                API Keys
+              </router-link>
+
+              <!-- Rate Limits -->
+              <router-link
+                v-if="canManageAPIKeys"
+                to="/admin/rate-limits"
+                :class="getLinkClass('RateLimits')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Rate Limits
+              </router-link>
+            </div>
           </div>
-          
-          <!-- Admin Submenu -->
-          <div v-show="showAdminMenu" class="ml-6 space-y-1">
-            <router-link
-              to="/admin/users"
-              :class="subNavLinkClass('/admin/users')"
-              @click="$emit('close')"
-            >
-              <svg class="mr-3 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-              </svg>
-              User Management
-            </router-link>
 
-            <router-link
-              to="/admin/api-keys"
-              :class="subNavLinkClass('/admin/api-keys')"
-              @click="$emit('close')"
-            >
-              <svg class="mr-3 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v-2H7v-2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-              </svg>
-              API Keys
-            </router-link>
+          <!-- Business Management Section -->
+          <div v-if="canAccessBusiness" class="pt-6">
+            <h3 class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Business Management
+            </h3>
+            <div class="mt-2 space-y-1">
+              <!-- Customer Management -->
+              <router-link
+                v-if="canManageCustomers"
+                to="/customers"
+                :class="getLinkClass('Customers')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                Customers
+              </router-link>
 
-            <router-link
-              to="/admin/rate-limits"
-              :class="subNavLinkClass('/admin/rate-limits')"
-              @click="$emit('close')"
-            >
-              <svg class="mr-3 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Rate Limits
-            </router-link>
+              <!-- Contract Management -->
+              <router-link
+                v-if="canManageContracts"
+                to="/contracts"
+                :class="getLinkClass('Contracts')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Contracts
+              </router-link>
+
+              <!-- Service Tiers -->
+              <router-link
+                v-if="canManageServiceTiers"
+                to="/service-tiers"
+                :class="getLinkClass('ServiceTiers')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                </svg>
+                Service Tiers
+              </router-link>
+            </div>
+          </div>
+
+          <!-- Hardware Management Section -->
+          <div v-if="canAccessHardware" class="pt-6">
+            <h3 class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Hardware
+            </h3>
+            <div class="mt-2 space-y-1">
+              <router-link
+                to="/hardware/overview"
+                :class="getLinkClass('HardwareOverview')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                </svg>
+                Hardware Overview
+              </router-link>
+            </div>
+          </div>
+
+          <!-- Monitoring Section -->
+          <div v-if="canAccessMonitoring" class="pt-6">
+            <h3 class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Monitoring
+            </h3>
+            <div class="mt-2 space-y-1">
+              <router-link
+                to="/monitoring/system"
+                :class="getLinkClass('SystemMonitoring')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                System Status
+              </router-link>
+
+              <!-- Diagnostics (Admin only) -->
+              <router-link
+                v-if="isAdmin"
+                to="/diagnostics"
+                :class="getLinkClass('Diagnostics')"
+              >
+                <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                </svg>
+                Diagnostics
+              </router-link>
+            </div>
           </div>
         </div>
-
-        <!-- Main navigation items -->
-        <router-link
-          to="/customers"
-          :class="navLinkClass('/customers')"
-          @click="$emit('close')"
-        >
-          <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          Customers
-        </router-link>
-
-        <router-link
-          to="/contracts"
-          :class="navLinkClass('/contracts')"
-          @click="$emit('close')"
-        >
-          <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Contracts
-        </router-link>
-
-        <router-link
-          to="/service-tiers"
-          :class="navLinkClass('/service-tiers')"
-          @click="$emit('close')"
-        >
-          <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-          </svg>
-          Service Tiers
-        </router-link>
-
-        <router-link
-          to="/hardware/overview"
-          :class="navLinkClass('/hardware')"
-          @click="$emit('close')"
-        >
-          <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-          </svg>
-          Hardware
-        </router-link>
-
-        <router-link
-          to="/monitoring/system"
-          :class="navLinkClass('/monitoring')"
-          @click="$emit('close')"
-        >
-          <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          Monitoring
-        </router-link>
-
-        <router-link
-          to="/diagnostics"
-          :class="navLinkClass('/diagnostics')"
-          @click="$emit('close')"
-        >
-          <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Diagnostics
-        </router-link>
       </nav>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-
-defineProps({
-  isOpen: {
-    type: Boolean,
-    default: false
-  }
-})
-
-defineEmits(['close'])
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
-const showAdminMenu = ref(false)
+const authStore = useAuthStore()
 
-// Initialize admin menu state based on current route
-if (route.path.startsWith('/admin')) {
-  showAdminMenu.value = true
+// Permission checks
+const isAdmin = computed(() => authStore.user?.role?.name === 'admin')
+
+const canManageUsers = computed(() => 
+  authStore.hasPermission('users', 'read') || isAdmin.value
+)
+
+const canManageRoles = computed(() => 
+  authStore.hasPermission('roles', 'read') || isAdmin.value
+)
+
+const canManageAPIKeys = computed(() => 
+  authStore.hasPermission('api_keys', 'read') || isAdmin.value
+)
+
+const canManageCustomers = computed(() => 
+  authStore.hasPermission('customers', 'read') || isAdmin.value
+)
+
+const canManageContracts = computed(() => 
+  authStore.hasPermission('contracts', 'read') || isAdmin.value
+)
+
+const canManageServiceTiers = computed(() => 
+  authStore.hasPermission('service_tiers', 'read') || isAdmin.value
+)
+
+// Section access checks
+const canAccessAdmin = computed(() => 
+  canManageUsers.value || canManageRoles.value || canManageAPIKeys.value
+)
+
+const canAccessBusiness = computed(() => 
+  canManageCustomers.value || canManageContracts.value || canManageServiceTiers.value
+)
+
+const canAccessHardware = computed(() => 
+  authStore.hasPermission('controllers', 'read') || 
+  authStore.hasPermission('cameras', 'read') || 
+  isAdmin.value
+)
+
+const canAccessMonitoring = computed(() => 
+  authStore.hasPermission('events', 'read') || 
+  authStore.hasPermission('logs', 'read') || 
+  isAdmin.value
+)
+
+// Helper function to get link classes
+const getLinkClass = (routeName) => {
+  const baseClasses = 'group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200'
+  const activeClasses = 'bg-gray-900 text-white'
+  const inactiveClasses = 'text-gray-300 hover:bg-gray-700 hover:text-white'
+  
+  return route.name === routeName 
+    ? `${baseClasses} ${activeClasses}`
+    : `${baseClasses} ${inactiveClasses}`
 }
-
-// Toggle admin menu
-const toggleAdminMenu = () => {
-  showAdminMenu.value = !showAdminMenu.value
-}
-
-// Check if admin section is active
-const isAdminSectionActive = () => {
-  return route.path.startsWith('/admin')
-}
-
-// Helper function for main nav link classes
-const navLinkClass = (path) => {
-  const isActive = path === '/' ? route.path === path : route.path.startsWith(path)
-  return [
-    'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200',
-    isActive 
-      ? 'bg-gray-800 text-white' 
-      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-  ]
-}
-
-// Helper function for sub nav link classes
-const subNavLinkClass = (path) => {
-  const isActive = route.path === path
-  return [
-    'group flex items-center px-3 py-2 text-xs font-medium rounded-md transition-colors duration-200',
-    isActive 
-      ? 'bg-gray-700 text-white' 
-      : 'text-gray-400 hover:bg-gray-600 hover:text-white'
-  ]
-}
-
-// Watch route changes to auto-expand admin menu
-computed(() => {
-  if (route.path.startsWith('/admin')) {
-    showAdminMenu.value = true
-  }
-  return route.path
-})
 </script>

@@ -1,10 +1,10 @@
 <template>
-  <div class="min-h-screen bg-gray-50 flex">
+  <div class="min-h-screen bg-gray-50">
     <!-- Sidebar -->
     <Sidebar :is-open="sidebarOpen" @close="sidebarOpen = false" />
 
-    <!-- Main content area -->
-    <div class="flex-1 flex flex-col">
+    <!-- Main content area with left margin for desktop sidebar -->
+    <div class="lg:ml-64 flex flex-col min-h-screen">
       <!-- Header -->
       <Header @toggle-sidebar="sidebarOpen = !sidebarOpen" />
 
