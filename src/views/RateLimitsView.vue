@@ -91,7 +91,7 @@
       <div class="px-6 py-4 border-b border-gray-200">
         <h2 class="text-lg font-medium text-gray-900">API Key Rate Limit Status</h2>
       </div>
-      
+
       <div v-if="loading" class="p-8 text-center">
         <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         <p class="mt-2 text-gray-600">Loading rate limit data...</p>
@@ -129,7 +129,8 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Last Used
               </th>
-              <th class="relative px-6 py-3">
+              <!-- Only show Actions column header if user is admin -->
+              <th v-if="isAdmin" class="relative px-6 py-3">
                 <span class="sr-only">Actions</span>
               </th>
             </tr>
@@ -147,7 +148,7 @@
                 <div class="flex items-center">
                   <div class="text-sm text-gray-900">{{ formatNumber(item.usage_last_hour || 0) }}</div>
                   <div class="ml-2 w-16 bg-gray-200 rounded-full h-2">
-                    <div class="h-2 rounded-full" 
+                    <div class="h-2 rounded-full"
                          :class="getUsageBarColor(item)"
                          :style="{ width: Math.min(getUsagePercentage(item), 100) + '%' }">
                     </div>
@@ -175,13 +176,15 @@
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {{ formatDate(item.last_used) }}
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              <!-- Only show reset button if user is admin -->
+              <td v-if="isAdmin" class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button
                   @click="resetApiKeyLimit(item.api_key_id)"
-                  class="text-blue-600 hover:text-blue-900"
+                  class="text-blue-600 hover:text-blue-900 disabled:opacity-50 disabled:cursor-not-allowed"
                   :disabled="resetLoading"
+                  title="Reset rate limit for this API key"
                 >
-                  Reset
+                  {{ resetLoading ? 'Resetting...' : 'Reset' }}
                 </button>
               </td>
             </tr>
@@ -205,7 +208,7 @@
       </div>
       <div class="p-6">
         <div class="space-y-3">
-          <div v-for="key in metricsData.top_usage_api_keys.slice(0, 5)" :key="key.api_key_id" 
+          <div v-for="key in metricsData.top_usage_api_keys.slice(0, 5)" :key="key.api_key_id"
                class="flex items-center justify-between py-2">
             <div class="flex items-center">
               <div>
@@ -218,7 +221,7 @@
                 {{ key.usage_last_hour }}/{{ key.rate_limit_per_hour }}
               </div>
               <div class="w-24 bg-gray-200 rounded-full h-2">
-                <div class="h-2 rounded-full bg-blue-600" 
+                <div class="h-2 rounded-full bg-blue-600"
                      :style="{ width: Math.min(key.utilization_percent || 0, 100) + '%' }">
                 </div>
               </div>
@@ -230,12 +233,36 @@
         </div>
       </div>
     </div>
+
+    <!-- Admin Notice (only shown to non-admin users if there would be reset buttons) -->
+    <div v-if="!isAdmin && statusData.api_key_rate_limits && statusData.api_key_rate_limits.length > 0" 
+         class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div class="flex items-center">
+        <svg class="w-5 h-5 text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <div>
+          <p class="text-blue-800 font-medium">Read-Only View</p>
+          <p class="text-blue-700 text-sm">Only administrators can reset API key rate limits. Contact an admin if you need to reset a rate limit.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { apiKeyService } from '@/services/apiKeys'
+
+// Store
+const authStore = useAuthStore()
+
+// Permission check - only admin role can reset rate limits
+const isAdmin = computed(() => {
+  const userRole = authStore.user?.role?.name?.toLowerCase()
+  return userRole === 'admin'
+})
 
 // Reactive data
 const loading = ref(false)
@@ -254,28 +281,28 @@ const statusData = ref({
 const loadData = async () => {
   loading.value = true
   error.value = ''
-  
+
   try {
     console.log('Loading rate limit data...')
-    
+
     // Load metrics and status data - your backend returns different structure
     const [metricsResponse, statusResponse] = await Promise.all([
       apiKeyService.rateLimits.getMetrics(),
       apiKeyService.rateLimits.getStatus()
     ])
-    
+
     console.log('Metrics response:', metricsResponse)
     console.log('Status response:', statusResponse)
-    
+
     // Your backend returns data in this format
     metricsData.value = metricsResponse
     statusData.value = statusResponse
-    
+
   } catch (err) {
     console.error('Failed to load rate limit data:', err)
     console.error('Error details:', err.response?.data)
     error.value = err.response?.data?.error || err.message || 'Failed to load rate limit data'
-    
+
     // Set empty defaults on error
     metricsData.value = { summary: {}, top_usage_api_keys: [] }
     statusData.value = { api_key_rate_limits: [], summary: {} }
@@ -285,10 +312,16 @@ const loadData = async () => {
 }
 
 const resetApiKeyLimit = async (apiKeyId) => {
+  // Double-check admin permission before allowing reset
+  if (!isAdmin.value) {
+    alert('Permission denied. Only administrators can reset API key rate limits.')
+    return
+  }
+
   if (!confirm('Reset rate limit for this API key? This will clear the usage history for the last hour.')) return
-  
+
   resetLoading.value = true
-  
+
   try {
     const response = await apiKeyService.rateLimits.resetApiKeyLimit(apiKeyId)
     console.log('Reset response:', response)
@@ -296,7 +329,11 @@ const resetApiKeyLimit = async (apiKeyId) => {
     alert(`Rate limit reset successfully. ${response.records_removed || 0} usage records were removed.`)
   } catch (err) {
     console.error('Failed to reset rate limit:', err)
-    alert('Failed to reset rate limit: ' + (err.response?.data?.error || err.message))
+    if (err.response?.status === 403) {
+      alert('Permission denied. Only administrators can reset API key rate limits.')
+    } else {
+      alert('Failed to reset rate limit: ' + (err.response?.data?.error || err.message))
+    }
   } finally {
     resetLoading.value = false
   }
@@ -306,14 +343,14 @@ const resetApiKeyLimit = async (apiKeyId) => {
 const getUsagePercentage = (item) => {
   const usage = item.usage_last_hour || 0
   const limit = item.rate_limit_per_hour || 0
-  
+
   if (limit === 0) return 0
   return (usage / limit) * 100
 }
 
 const getUsageBarColor = (item) => {
   const percentage = getUsagePercentage(item)
-  
+
   if (percentage >= 100) return 'bg-red-500'
   if (percentage >= 90) return 'bg-yellow-500'
   if (percentage >= 70) return 'bg-orange-500'
@@ -339,7 +376,7 @@ const getStatusColor = (item) => {
 const getStatusDisplay = (status) => {
   const statusMap = {
     'RATE_LIMITED': 'Rate Limited',
-    'APPROACHING_LIMIT': 'Near Limit', 
+    'APPROACHING_LIMIT': 'Near Limit',
     'MODERATE_USAGE': 'Moderate',
     'LOW_USAGE': 'Normal'
   }

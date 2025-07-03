@@ -7,7 +7,7 @@
         <p class="text-gray-600">Manage API keys for external system access</p>
       </div>
       <button
-        v-if="canManageAPIKeys"
+        v-if="hasPermission('api_keys', 'create')"
         @click="showCreateModal = true"
         class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
       >
@@ -176,7 +176,7 @@
                     </svg>
                   </button>
                   <button
-                    v-if="canManageAPIKeys"
+                    v-if="hasPermission('api_keys', 'update')"
                     @click="editAPIKey(apiKey)"
                     class="text-blue-600 hover:text-blue-900"
                     title="Edit API Key"
@@ -186,7 +186,7 @@
                     </svg>
                   </button>
                   <button
-                    v-if="canManageAPIKeys"
+                    v-if="hasPermission('api_keys', 'update')"
                     @click="toggleAPIKeyStatus(apiKey)"
                     :class="apiKey.active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'"
                     :title="apiKey.active ? 'Deactivate API Key' : 'Activate API Key'"
@@ -199,7 +199,7 @@
                     </svg>
                   </button>
                   <button
-                    v-if="canManageAPIKeys"
+                    v-if="hasPermission('api_keys', 'delete')"
                     @click="deleteAPIKey(apiKey)"
                     class="text-red-600 hover:text-red-900"
                     title="Delete API Key"
@@ -291,13 +291,17 @@
               ></textarea>
             </div>
 
-            <!-- Permissions Section -->
+            <!-- Permissions Section using centralized data -->
             <div>
               <h4 class="text-sm font-medium text-gray-700 mb-3">Permissions *</h4>
               <div class="space-y-4 bg-gray-50 p-4 rounded-lg">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div v-for="resource in availableResources" :key="resource.name" class="border rounded p-3 bg-white">
-                    <h5 class="font-medium text-gray-900 mb-2">{{ resource.label }}</h5>
+                  <div v-for="resource in apiKeyResources" :key="resource.name" class="border rounded p-3 bg-white">
+                    <div class="flex items-center mb-2">
+                      <component :is="getResourceIcon(resource.icon)" :class="resource.color" class="w-5 h-5 mr-2" />
+                      <h5 class="font-medium text-gray-900">{{ resource.label }}</h5>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-3">{{ resource.description }}</p>
                     <div class="space-y-2">
                       <label
                         v-for="action in resource.actions"
@@ -306,11 +310,14 @@
                       >
                         <input
                           type="checkbox"
-                          :checked="hasPermission(resource.name, action.name)"
-                          @change="togglePermission(resource.name, action.name, $event.target.checked)"
+                          :checked="createPermissions.hasPermission(resource.name, action.name)"
+                          @change="createPermissions.togglePermission(resource.name, action.name, $event.target.checked)"
                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span>{{ action.label }}</span>
+                        <span :class="action.color">{{ action.label }}</span>
+                        <span v-if="action.risk" :class="getRiskBadgeClass(action.risk)" class="text-xs px-1.5 py-0.5 rounded-full">
+                          {{ action.risk }}
+                        </span>
                       </label>
                     </div>
                   </div>
@@ -434,13 +441,17 @@
               </label>
             </div>
 
-            <!-- Permissions Section -->
+            <!-- Permissions Section using centralized data -->
             <div>
               <h4 class="text-sm font-medium text-gray-700 mb-3">Permissions *</h4>
               <div class="space-y-4 bg-gray-50 p-4 rounded-lg">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div v-for="resource in availableResources" :key="resource.name" class="border rounded p-3 bg-white">
-                    <h5 class="font-medium text-gray-900 mb-2">{{ resource.label }}</h5>
+                  <div v-for="resource in apiKeyResources" :key="resource.name" class="border rounded p-3 bg-white">
+                    <div class="flex items-center mb-2">
+                      <component :is="getResourceIcon(resource.icon)" :class="resource.color" class="w-5 h-5 mr-2" />
+                      <h5 class="font-medium text-gray-900">{{ resource.label }}</h5>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-3">{{ resource.description }}</p>
                     <div class="space-y-2">
                       <label
                         v-for="action in resource.actions"
@@ -449,11 +460,14 @@
                       >
                         <input
                           type="checkbox"
-                          :checked="hasEditPermission(resource.name, action.name)"
-                          @change="toggleEditPermission(resource.name, action.name, $event.target.checked)"
+                          :checked="editPermissions.hasPermission(resource.name, action.name)"
+                          @change="editPermissions.togglePermission(resource.name, action.name, $event.target.checked)"
                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span>{{ action.label }}</span>
+                        <span :class="action.color">{{ action.label }}</span>
+                        <span v-if="action.risk" :class="getRiskBadgeClass(action.risk)" class="text-xs px-1.5 py-0.5 rounded-full">
+                          {{ action.risk }}
+                        </span>
                       </label>
                     </div>
                   </div>
@@ -657,12 +671,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { ref, onMounted, computed, h } from 'vue'
+import { usePermissions, useAPIKeyPermissions } from '@/composables/usePermissions'
 import { apiKeyService, apiKeyUtils } from '@/services/apiKeys'
 
-// Store
-const authStore = useAuthStore()
+// Use centralized permissions
+const { hasPermission, getAPIKeyResources } = usePermissions()
+const { availableResources: apiKeyResources } = useAPIKeyPermissions()
 
 // Reactive data
 const loading = ref(false)
@@ -686,56 +701,11 @@ const createError = ref('')
 const editLoading = ref(false)
 const editError = ref('')
 
-// Available resources and actions for permissions
-const availableResources = ref([
-  {
-    name: 'customers',
-    label: 'Customers',
-    actions: [
-      { name: 'read', label: 'View' },
-      { name: 'create', label: 'Create' },
-      { name: 'update', label: 'Update' },
-      { name: 'delete', label: 'Delete' }
-    ]
-  },
-  {
-    name: 'contracts',
-    label: 'Contracts',
-    actions: [
-      { name: 'read', label: 'View' },
-      { name: 'create', label: 'Create' },
-      { name: 'update', label: 'Update' },
-      { name: 'delete', label: 'Delete' }
-    ]
-  },
-  {
-    name: 'users',
-    label: 'User Management',
-    actions: [
-      { name: 'read', label: 'View' },
-      { name: 'create', label: 'Create' },
-      { name: 'update', label: 'Update' },
-      { name: 'delete', label: 'Delete' }
-    ]
-  },
-  {
-    name: 'api_keys',
-    label: 'API Keys',
-    actions: [
-      { name: 'read', label: 'View' },
-      { name: 'create', label: 'Create' },
-      { name: 'update', label: 'Update' },
-      { name: 'delete', label: 'Delete' }
-    ]
-  }
-])
-
-// Form data
+// Form data - simplified using centralized permissions
 const createForm = ref({
   key_name: '',
   description: '',
   rate_limit_per_hour: 1000,
-  permissions: {},
   contract_access: null
 })
 
@@ -744,9 +714,33 @@ const editForm = ref({
   description: '',
   rate_limit_per_hour: 1000,
   active: true,
-  permissions: {},
   contract_access: null
 })
+
+// Permission handlers using centralized system
+const createPermissions = ref({})
+const editPermissions = ref({})
+
+// Initialize permission handlers
+const { hasPermission: createHasPermission, togglePermission: createTogglePermission } = useAPIKeyPermissions()
+const { hasPermission: editHasPermission, togglePermission: editTogglePermission } = useAPIKeyPermissions()
+
+// Setup permission reactive objects
+createPermissions.value = {
+  hasPermission: (resource, action) => createHasPermission(createForm.value.permissions || {}, resource, action),
+  togglePermission: (resource, action, checked) => {
+    if (!createForm.value.permissions) createForm.value.permissions = {}
+    createTogglePermission(createForm.value.permissions, resource, action, checked)
+  }
+}
+
+editPermissions.value = {
+  hasPermission: (resource, action) => editHasPermission(editForm.value.permissions || {}, resource, action),
+  togglePermission: (resource, action, checked) => {
+    if (!editForm.value.permissions) editForm.value.permissions = {}
+    editTogglePermission(editForm.value.permissions, resource, action, checked)
+  }
+}
 
 // Additional form states
 const hasExpirationDate = ref(false)
@@ -755,12 +749,6 @@ const editHasExpirationDate = ref(false)
 const editExpirationDate = ref('')
 
 // Computed properties
-const canManageAPIKeys = computed(() => {
-  return authStore.hasPermission('api_keys', 'create') ||
-         authStore.hasPermission('api_keys', 'update') ||
-         authStore.user?.role?.name === 'admin'
-})
-
 const apiKeyStats = computed(() => {
   const total = apiKeys.value.length
   const active = apiKeys.value.filter(key => key.active && !apiKeyUtils.isExpired(key)).length
@@ -772,13 +760,63 @@ const apiKeyStats = computed(() => {
 
 const isFormValid = computed(() => {
   return createForm.value.key_name.trim() !== '' &&
+         createForm.value.permissions &&
          Object.keys(createForm.value.permissions).length > 0
 })
 
 const isEditFormValid = computed(() => {
   return editForm.value.key_name.trim() !== '' &&
+         editForm.value.permissions &&
          Object.keys(editForm.value.permissions).length > 0
 })
+
+// Icon helper functions
+const getResourceIcon = (iconName) => {
+  const icons = {
+    'users': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' })
+    ]),
+    'users-multiple': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' })
+    ]),
+    'document-text': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
+    ]),
+    'collection': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })
+    ]),
+    'key': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1221 9z' })
+    ]),
+    'desktop-computer': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' })
+    ]),
+    'video-camera': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' })
+    ]),
+    'server': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01' })
+    ]),
+    'bell': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 17h5l-5 5v-5zM12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' })
+    ]),
+    'wifi': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0' })
+    ])
+  }
+
+  return icons[iconName] || icons['key']
+}
+
+const getRiskBadgeClass = (risk) => {
+  const classes = {
+    low: 'bg-green-100 text-green-800',
+    medium: 'bg-yellow-100 text-yellow-800',
+    high: 'bg-orange-100 text-orange-800',
+    critical: 'bg-red-100 text-red-800'
+  }
+  return classes[risk] || classes.low
+}
 
 // Methods
 const loadAPIKeys = async () => {
@@ -792,50 +830,6 @@ const loadAPIKeys = async () => {
     console.error('Failed to load API keys:', err)
   } finally {
     loading.value = false
-  }
-}
-
-// Create form permission methods
-const hasPermission = (resource, action) => {
-  return createForm.value.permissions[resource]?.includes(action) || false
-}
-
-const togglePermission = (resource, action, checked) => {
-  if (!createForm.value.permissions[resource]) {
-    createForm.value.permissions[resource] = []
-  }
-
-  if (checked) {
-    if (!createForm.value.permissions[resource].includes(action)) {
-      createForm.value.permissions[resource].push(action)
-    }
-  } else {
-    createForm.value.permissions[resource] = createForm.value.permissions[resource].filter(a => a !== action)
-    if (createForm.value.permissions[resource].length === 0) {
-      delete createForm.value.permissions[resource]
-    }
-  }
-}
-
-// Edit form permission methods
-const hasEditPermission = (resource, action) => {
-  return editForm.value.permissions[resource]?.includes(action) || false
-}
-
-const toggleEditPermission = (resource, action, checked) => {
-  if (!editForm.value.permissions[resource]) {
-    editForm.value.permissions[resource] = []
-  }
-
-  if (checked) {
-    if (!editForm.value.permissions[resource].includes(action)) {
-      editForm.value.permissions[resource].push(action)
-    }
-  } else {
-    editForm.value.permissions[resource] = editForm.value.permissions[resource].filter(a => a !== action)
-    if (editForm.value.permissions[resource].length === 0) {
-      delete editForm.value.permissions[resource]
-    }
   }
 }
 
@@ -873,7 +867,7 @@ const handleCreateAPIKey = async () => {
       description: createForm.value.description || null,
       rate_limit_per_hour: createForm.value.rate_limit_per_hour || 1000,
       permissions: createForm.value.permissions,
-      contract_access: null, // Always null for now - you can enhance this later
+      contract_access: null,
       expires_at: hasExpirationDate.value && expirationDate.value ?
         new Date(expirationDate.value).toISOString() : null
     }
@@ -959,9 +953,9 @@ const viewUsage = async (apiKey) => {
   } catch (err) {
     console.error('Failed to load usage data:', err)
     // Fallback to basic data
-    usageData.value = { 
-      total_requests: apiKey.usage_count || 0, 
-      last_used: apiKey.last_used 
+    usageData.value = {
+      total_requests: apiKey.usage_count || 0,
+      last_used: apiKey.last_used
     }
   }
 }
@@ -1026,5 +1020,8 @@ const closeNewAPIKeyModal = () => {
 // Lifecycle
 onMounted(() => {
   loadAPIKeys()
+  // Initialize permissions objects
+  createForm.value.permissions = {}
+  editForm.value.permissions = {}
 })
 </script>

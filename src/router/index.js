@@ -24,13 +24,19 @@ const routes = [
         path: '/admin',
         name: 'Admin',
         redirect: '/admin/users',
-        meta: { title: 'User Management' }
+        meta: { title: 'Administration' }
       },
       {
         path: '/admin/users',
         name: 'AdminUsers',
         component: () => import('@/views/AdminUsersView.vue'),
         meta: { title: 'User Management' }
+      },
+      {
+        path: '/admin/roles',
+        name: 'AdminRoles',
+        component: () => import('@/views/RolesView.vue'),
+        meta: { title: 'Role Management' }
       },
       {
         path: '/admin/api-keys',
