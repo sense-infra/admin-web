@@ -1,220 +1,430 @@
 <template>
-  <div class="fixed inset-0 z-50 overflow-y-auto">
-    <div class="flex items-center justify-center min-h-screen px-4">
-      <div class="fixed inset-0 bg-black opacity-50" @click="$emit('close')"></div>
-
-      <div class="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">
-            {{ isEditing ? 'Edit User' : 'Create User' }}
-          </h3>
-          <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600">
-            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+  <FormModal
+    :open="!!user || showModal"
+    :entity-name="!!user ? 'User (Edit)' : 'User'"
+    :initial-data="initialData"
+    :validation-rules="validationRules"
+    :submit-handler="handleSubmit"
+    :validate-on-change="true"
+    size="medium"
+    @close="$emit('close')"
+    @saved="handleSaved"
+  >
+    <template #default="{ form, errors, isEditing }">
+      <div class="space-y-4">
+        <!-- Server Error Display -->
+        <div v-if="serverError" class="p-3 bg-red-50 border border-red-200 rounded-md">
+          <div class="flex items-start">
+            <ActionIcon name="warning" size="sm" class="text-red-400 mr-2 mt-0.5" />
+            <div>
+              <p class="text-sm font-medium text-red-800">{{ serverError }}</p>
+            </div>
+          </div>
         </div>
 
-        <form @submit.prevent="handleSubmit">
-          <div class="space-y-4">
+        <!-- Loading Roles Notice -->
+        <div v-if="rolesLoading" class="p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <div class="flex items-start">
+            <ActionIcon name="loading" size="sm" class="text-blue-400 mr-2 mt-0.5" />
             <div>
-              <label for="username" class="form-label">Username *</label>
-              <input
-                id="username"
-                v-model="form.username"
-                type="text"
-                required
-                class="form-input"
-                :disabled="isEditing"
-                placeholder="Enter username"
-              />
+              <p class="text-sm font-medium text-blue-800">Loading roles...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Username -->
+        <FormField
+          v-model="form.username"
+          type="text"
+          label="Username"
+          placeholder="Enter username"
+          :error="errors.username"
+          :disabled="isEditing"
+          required
+        />
+
+        <!-- Email -->
+        <FormField
+          v-model="form.email"
+          type="email"
+          label="Email"
+          placeholder="user@example.com"
+          :error="errors.email"
+          required
+        />
+
+        <!-- Name Fields -->
+        <div class="grid grid-cols-2 gap-4">
+          <FormField
+            v-model="form.first_name"
+            type="text"
+            label="First Name"
+            placeholder="First name"
+            :error="errors.first_name"
+          />
+          <FormField
+            v-model="form.last_name"
+            type="text"
+            label="Last Name"
+            placeholder="Last name"
+            :error="errors.last_name"
+          />
+        </div>
+
+        <!-- Role Selection -->
+        <FormField
+          v-model="form.role_id"
+          type="select"
+          label="Role"
+          placeholder="Select a role"
+          :options="roleOptions"
+          option-value="role_id"
+          option-label="displayName"
+          :error="errors.role_id"
+          :disabled="rolesLoading"
+          required
+        />
+
+        <!-- Password (only for new users) -->
+        <div v-if="!isEditing">
+          <FormField
+            v-model="form.password"
+            type="password"
+            label="Password"
+            placeholder="Enter password (optional)"
+            :error="errors.password"
+            help="Leave empty to auto-generate a secure password"
+          />
+
+          <!-- Password strength indicator -->
+          <div v-if="form.password" class="mt-2">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600">Password strength:</span>
+              <span :class="getStrengthColorClass(form.password)">
+                {{ getPasswordStrengthInfo(form.password).label }}
+              </span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+              <div
+                :class="getStrengthColorClass(form.password, true)"
+                class="h-2 rounded-full transition-all duration-300"
+                :style="{ width: `${(getPasswordStrength(form.password) / 4) * 100}%` }"
+              ></div>
             </div>
 
-            <div>
-              <label for="email" class="form-label">Email *</label>
-              <input
-                id="email"
-                v-model="form.email"
-                type="email"
-                required
-                class="form-input"
-                placeholder="user@example.com"
-              />
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label for="first_name" class="form-label">First Name</label>
-                <input
-                  id="first_name"
-                  v-model="form.first_name"
-                  type="text"
-                  class="form-input"
-                  placeholder="First name"
-                />
+            <!-- Password Requirements -->
+            <div class="mt-2 text-xs space-y-1">
+              <div class="text-gray-600 font-medium">Password Requirements:</div>
+              <div :class="getRequirementClass(form.password, 8)">
+                ✓ At least 8 characters
               </div>
-              <div>
-                <label for="last_name" class="form-label">Last Name</label>
-                <input
-                  id="last_name"
-                  v-model="form.last_name"
-                  type="text"
-                  class="form-input"
-                  placeholder="Last name"
-                />
+              <div :class="getRequirementClass(form.password, 'lowercase')">
+                ✓ At least one lowercase letter
+              </div>
+              <div :class="getRequirementClass(form.password, 'uppercase')">
+                ✓ At least one uppercase letter
+              </div>
+              <div :class="getRequirementClass(form.password, 'number')">
+                ✓ At least one number
+              </div>
+              <div :class="getRequirementClass(form.password, 'special')">
+                ✓ At least one special character
               </div>
             </div>
+          </div>
+        </div>
 
-            <div>
-              <label for="role_id" class="form-label">Role *</label>
-              <select
-                id="role_id"
-                v-model="form.role_id"
-                required
-                class="form-input"
-              >
-                <option value="">Select a role</option>
-                <option v-for="role in roles" :key="role.role_id" :value="role.role_id">
-                  {{ role.name }} - {{ role.description }}
-                </option>
-              </select>
+        <!-- Active Status -->
+        <FormField
+          v-model="form.active"
+          type="checkbox"
+          label="Active user"
+          help="Inactive users cannot log in to the system"
+        />
+
+        <!-- Generated Password Display -->
+        <div v-if="generatedPassword" class="p-3 bg-green-50 border border-green-200 rounded-md">
+          <div class="flex items-start">
+            <ActionIcon name="success" size="sm" class="text-green-400 mr-2 mt-0.5" />
+            <div class="flex-1">
+              <p class="text-sm font-medium text-green-800">
+                Generated Password: <code class="bg-green-100 px-2 py-1 rounded">{{ generatedPassword }}</code>
+              </p>
+              <p class="text-xs text-green-600 mt-1">
+                Please save this password and provide it to the user.
+              </p>
+              <div class="flex gap-2 mt-2">
+                <button
+                  @click="copyToClipboard(generatedPassword)"
+                  type="button"
+                  class="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition-colors"
+                >
+                  Copy Password
+                </button>
+                <button
+                  @click="closeModalAfterCopy"
+                  type="button"
+                  class="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                >
+                  Copy & Close
+                </button>
+              </div>
             </div>
-
-            <div v-if="!isEditing">
-              <label for="password" class="form-label">Password *</label>
-              <input
-                id="password"
-                v-model="form.password"
-                type="password"
-                required
-                class="form-input"
-                placeholder="Enter password"
-              />
-              <p class="text-xs text-gray-500 mt-1">Password will be generated if left empty</p>
-            </div>
-
-            <div>
-              <label class="flex items-center">
-                <input
-                  v-model="form.active"
-                  type="checkbox"
-                  class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                />
-                <span class="ml-2 text-sm text-gray-600">Active user</span>
-              </label>
-            </div>
           </div>
-
-          <div v-if="error" class="mt-4 p-3 bg-red-100 border border-red-200 text-red-700 rounded">
-            {{ error }}
-          </div>
-
-          <div v-if="generatedPassword" class="mt-4 p-3 bg-green-100 border border-green-200 rounded">
-            <p class="text-sm text-green-800">
-              <strong>Generated Password:</strong> {{ generatedPassword }}
-            </p>
-            <p class="text-xs text-green-600 mt-1">Please save this password and provide it to the user.</p>
-          </div>
-
-          <div class="flex justify-end space-x-3 mt-6">
-            <button type="button" @click="$emit('close')" class="btn btn-outline">
-              Cancel
-            </button>
-            <button type="submit" :disabled="loading" class="btn btn-primary">
-              {{ loading ? 'Saving...' : (isEditing ? 'Update' : 'Create') }}
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
-    </div>
-  </div>
+    </template>
+  </FormModal>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import FormModal from '@/components/ui/FormModal.vue'
+import FormField from '@/components/forms/FormField.vue'
+import ActionIcon from '@/components/icons/ActionIcons.vue'
 import api from '@/services/api'
+import { userService, userUtils } from '@/services/users'
+import {
+  validatePassword,
+  getPasswordStrength,
+  getPasswordStrengthInfo,
+  hasSpecialCharacters
+} from '@/utils/passwordValidation'
+import { validation } from '@/utils/validation'
 
 const props = defineProps({
   user: {
     type: Object,
     default: null
+  },
+  showModal: {
+    type: Boolean,
+    default: false
+  },
+  allUsers: {
+    type: Array,
+    default: () => []
   }
 })
 
 const emit = defineEmits(['close', 'saved'])
 
-const loading = ref(false)
-const error = ref(null)
 const roles = ref([])
-const generatedPassword = ref(null)
+const rolesLoading = ref(false)
+const generatedPassword = ref('')
+const serverError = ref('')
 
-const form = ref({
-  username: '',
-  email: '',
-  first_name: '',
-  last_name: '',
-  role_id: '',
-  password: '',
-  active: true
+const isEditing = computed(() => {
+  return !!(props.user && props.user.user_id)
 })
 
-const isEditing = computed(() => !!props.user)
+const initialData = computed(() => {
+  if (isEditing.value && props.user) {
+    return {
+      user_id: props.user.user_id,
+      username: props.user.username || '',
+      email: props.user.email || '',
+      first_name: props.user.first_name || '',
+      last_name: props.user.last_name || '',
+      role_id: props.user.role_id || props.user.role?.role_id || '',
+      active: (() => {
+        const value = props.user.active
+        if (value === true || value === 1 || value === '1' || value === 'true') return true
+        if (value === false || value === 0 || value === '0' || value === 'false') return false
+        return Boolean(value)
+      })()
+    }
+  } else {
+    return {
+      username: '',
+      email: '',
+      first_name: '',
+      last_name: '',
+      role_id: '',
+      active: true
+    }
+  }
+})
+
+const roleOptions = computed(() => {
+  return roles.value.map(role => ({
+    ...role,
+    displayName: `${role.name} - ${role.description || 'No description'}`
+  }))
+})
+
+const validationRules = computed(() => {
+  return {
+    username: validation()
+      .required('Username')
+      .minLength(3)
+      .maxLength(50)
+      .alphanumericUnderscore()
+      .unique({
+        items: props.allUsers,
+        field: 'username',
+        idField: 'user_id',
+        currentItem: isEditing.value ? props.user : null,
+        caseSensitive: false,
+        errorMessage: 'This username is already taken'
+      })
+      .build(),
+
+    email: validation()
+      .required('Email')
+      .maxLength(255)
+      .email()
+      .unique({
+        items: props.allUsers,
+        field: 'email', 
+        idField: 'user_id',
+        currentItem: isEditing.value ? props.user : null,
+        caseSensitive: false,
+        errorMessage: 'This email address is already in use'
+      })
+      .build(),
+
+    first_name: validation()
+      .maxLength(100)
+      .build(),
+
+    last_name: validation()
+      .maxLength(100)
+      .build(),
+
+    role_id: {
+      required: true,
+      validator: (value) => {
+        if (!value) return 'Please select a role'
+
+        if (rolesLoading.value || roles.value.length === 0) {
+          return true
+        }
+
+        const roleExists = roles.value.some(role => role.role_id === parseInt(value))
+        return roleExists || 'Selected role does not exist'
+      }
+    },
+
+    password: {
+      required: false,
+      validator: (value) => {
+        if (isEditing.value) return true
+        if (!value || value.trim() === '') return true
+        return validatePassword(value)
+      }
+    },
+
+    active: {}
+  }
+})
+
+const getStrengthColorClass = (password, isBar = false) => {
+  const strength = getPasswordStrength(password)
+  const prefix = isBar ? 'bg-' : 'text-'
+
+  const colorMap = {
+    0: `${prefix}red-500`,
+    1: `${prefix}red-500`,
+    2: `${prefix}yellow-500`,
+    3: `${prefix}blue-500`,
+    4: `${prefix}green-500`
+  }
+
+  return colorMap[strength] || `${prefix}gray-400`
+}
+
+const getRequirementClass = (password, requirement) => {
+  if (!password) return 'text-gray-400'
+
+  let isMet = false
+
+  switch (requirement) {
+    case 8:
+      isMet = password.length >= 8
+      break
+    case 'lowercase':
+      isMet = /[a-z]/.test(password)
+      break
+    case 'uppercase':
+      isMet = /[A-Z]/.test(password)
+      break
+    case 'number':
+      isMet = /\d/.test(password)
+      break
+    case 'special':
+      isMet = hasSpecialCharacters(password)
+      break
+  }
+
+  return isMet ? 'text-green-600' : 'text-red-500'
+}
+
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err)
+  }
+}
+
+const closeModalAfterCopy = async () => {
+  await copyToClipboard(generatedPassword.value)
+  generatedPassword.value = ''
+  serverError.value = ''
+  emit('close')
+}
 
 const fetchRoles = async () => {
+  rolesLoading.value = true
   try {
     const response = await api.get('/auth/roles')
     roles.value = response.data || []
   } catch (err) {
     console.error('Failed to fetch roles:', err)
+    roles.value = []
+    serverError.value = 'Failed to load roles. Please refresh and try again.'
+  } finally {
+    rolesLoading.value = false
   }
 }
 
-const handleSubmit = async () => {
-  loading.value = true
-  error.value = null
-  generatedPassword.value = null
+const handleSubmit = async (formData, isEditingMode) => {
+  serverError.value = ''
 
   try {
     let response
-    if (isEditing.value) {
-      response = await api.put(`/auth/users/${props.user.user_id}`, form.value)
+
+    if (isEditingMode) {
+      response = await userService.update(props.user.user_id, formData)
     } else {
-      // For new users, always set force_password_change to false
-      const createData = {
-        ...form.value,
-        force_password_change: false
-      }
-      response = await api.post('/auth/users', createData)
-      if (response.data.password) {
-        generatedPassword.value = response.data.password
-        // Don't close modal immediately if password was generated
-        setTimeout(() => {
-          emit('saved')
-        }, 5000) // Give user time to copy password
-        return
-      }
+      response = await userService.create(formData)
     }
-    emit('saved')
-  } catch (err) {
-    console.error('Failed to save user:', err)
-    error.value = err.response?.data?.message || 'Failed to save user'
-  } finally {
-    loading.value = false
+
+    if (response?.password) {
+      generatedPassword.value = response.password
+      return response
+    }
+
+    return response
+  } catch (error) {
+    console.error('Failed to save user:', error)
+    serverError.value = userUtils.formatError(error)
+    await nextTick()
+    throw error
+  }
+}
+
+const handleSaved = (result) => {
+  if (result?.password) {
+    generatedPassword.value = result.password
+    emit('saved', result)
+  } else {
+    emit('saved', result)
   }
 }
 
 onMounted(async () => {
   await fetchRoles()
-
-  if (props.user) {
-    form.value = {
-      username: props.user.username || '',
-      email: props.user.email || '',
-      first_name: props.user.first_name || '',
-      last_name: props.user.last_name || '',
-      role_id: props.user.role_id || '',
-      active: props.user.active !== false
-    }
-  }
 })
 </script>

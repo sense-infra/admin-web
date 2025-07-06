@@ -28,8 +28,8 @@ const routes = [
       },
       {
         path: '/admin/users',
-        name: 'AdminUsers',
-        component: () => import('@/views/AdminUsersView.vue'),
+        name: 'UserManagement', // Updated from 'AdminUsers'
+        component: () => import('@/views/UserManagementView.vue'), // Updated from AdminUsersView
         meta: { title: 'User Management' }
       },
       {

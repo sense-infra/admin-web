@@ -11,7 +11,7 @@
           <h1 class="ml-3 text-xl font-bold text-white">Sense Security</h1>
         </div>
       </div>
-      
+
       <nav class="mt-8 flex-1 flex flex-col divide-y divide-gray-700 overflow-y-auto" aria-label="Sidebar">
         <div class="px-2 space-y-1">
           <!-- Dashboard -->
@@ -35,7 +35,7 @@
               <router-link
                 v-if="canManageUsers"
                 to="/admin/users"
-                :class="getLinkClass('AdminUsers')"
+                :class="getLinkClass('UserManagement')"
               >
                 <svg class="mr-3 flex-shrink-0 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
@@ -189,48 +189,48 @@ const authStore = useAuthStore()
 // Permission checks
 const isAdmin = computed(() => authStore.user?.role?.name === 'admin')
 
-const canManageUsers = computed(() => 
+const canManageUsers = computed(() =>
   authStore.hasPermission('users', 'read') || isAdmin.value
 )
 
-const canManageRoles = computed(() => 
+const canManageRoles = computed(() =>
   authStore.hasPermission('roles', 'read') || isAdmin.value
 )
 
-const canManageAPIKeys = computed(() => 
+const canManageAPIKeys = computed(() =>
   authStore.hasPermission('api_keys', 'read') || isAdmin.value
 )
 
-const canManageCustomers = computed(() => 
+const canManageCustomers = computed(() =>
   authStore.hasPermission('customers', 'read') || isAdmin.value
 )
 
-const canManageContracts = computed(() => 
+const canManageContracts = computed(() =>
   authStore.hasPermission('contracts', 'read') || isAdmin.value
 )
 
-const canManageServiceTiers = computed(() => 
+const canManageServiceTiers = computed(() =>
   authStore.hasPermission('service_tiers', 'read') || isAdmin.value
 )
 
 // Section access checks
-const canAccessAdmin = computed(() => 
+const canAccessAdmin = computed(() =>
   canManageUsers.value || canManageRoles.value || canManageAPIKeys.value
 )
 
-const canAccessBusiness = computed(() => 
+const canAccessBusiness = computed(() =>
   canManageCustomers.value || canManageContracts.value || canManageServiceTiers.value
 )
 
-const canAccessHardware = computed(() => 
-  authStore.hasPermission('controllers', 'read') || 
-  authStore.hasPermission('cameras', 'read') || 
+const canAccessHardware = computed(() =>
+  authStore.hasPermission('controllers', 'read') ||
+  authStore.hasPermission('cameras', 'read') ||
   isAdmin.value
 )
 
-const canAccessMonitoring = computed(() => 
-  authStore.hasPermission('events', 'read') || 
-  authStore.hasPermission('logs', 'read') || 
+const canAccessMonitoring = computed(() =>
+  authStore.hasPermission('events', 'read') ||
+  authStore.hasPermission('logs', 'read') ||
   isAdmin.value
 )
 
@@ -239,8 +239,8 @@ const getLinkClass = (routeName) => {
   const baseClasses = 'group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200'
   const activeClasses = 'bg-gray-900 text-white'
   const inactiveClasses = 'text-gray-300 hover:bg-gray-700 hover:text-white'
-  
-  return route.name === routeName 
+
+  return route.name === routeName
     ? `${baseClasses} ${activeClasses}`
     : `${baseClasses} ${inactiveClasses}`
 }
