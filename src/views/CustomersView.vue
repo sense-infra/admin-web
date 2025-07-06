@@ -85,562 +85,351 @@
       </div>
     </div>
 
-    <!-- Search and Filters -->
-    <div class="bg-white rounded-lg shadow p-6">
-      <div class="flex flex-col md:flex-row gap-4">
-        <div class="flex-1">
-          <div class="relative">
-            <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Search customers by name, email, or unique ID..."
-              class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        </div>
-        <div class="flex gap-2">
-          <button
-            @click="clearFilters"
-            class="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg"
-          >
-            Clear
-          </button>
-          <button
-            @click="loadCustomers"
-            class="px-4 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg"
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- Customers Table -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-medium text-gray-900">Customers</h2>
-      </div>
+    <DataTable
+      :items="customers"
+      :columns="tableColumns"
+      :loading="loading"
+      :error="error"
+      title="Customers"
+      searchable
+      paginated
+      :initial-page-size="25"
+      search-placeholder="Search customers by name, email, or unique ID..."
+      empty-state-title="No customers found"
+      :empty-state-message="'Click \'Add Customer\' to create your first customer'"
+      @refresh="loadCustomers"
+      @row-click="viewCustomer"
+    >
 
-      <div v-if="loading" class="p-8 text-center">
-        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p class="mt-2 text-gray-600">Loading customers...</p>
-      </div>
-
-      <div v-else-if="error" class="p-8 text-center text-red-600">
-        <p>{{ error }}</p>
-        <button @click="loadCustomers" class="mt-2 text-blue-600 hover:text-blue-800">
-          Try Again
-        </button>
-      </div>
-
-      <div v-else class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Customer
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Contact Info
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Address
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Contracts
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Created
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Updated
-              </th>
-              <th class="relative px-6 py-3">
-                <span class="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="customer in filteredCustomers" :key="customer.customer_id" class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div>
-                  <div class="text-sm font-medium text-gray-900">{{ customer.name_on_contract }}</div>
-                  <div class="text-sm text-gray-500">ID: {{ customer.unique_id }}</div>
-                  <div class="text-xs text-gray-400">#{{ customer.customer_id }}</div>
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div>
-                  <div class="text-sm text-gray-900">{{ customer.email || 'No email' }}</div>
-                  <div class="text-sm text-gray-500">{{ customer.phone_number || 'No phone' }}</div>
-                </div>
-              </td>
-              <td class="px-6 py-4">
-                <div class="text-sm text-gray-900 max-w-xs truncate" :title="customer.address">
-                  {{ customer.address }}
-                </div>
-              </td>
-              <td class="px-6 py-4">
-                <div class="text-sm text-gray-900">
-                  <template v-if="getCustomerContracts(customer.customer_id).length > 0">
-                    <template v-for="(contract, index) in getCustomerContracts(customer.customer_id)" :key="contract.contract_id">
-                      <div class="mb-1" v-if="index < 2">
-                        <router-link
-                          :to="`/contracts?view=${contract.contract_id}`"
-                          class="text-blue-600 hover:text-blue-800 hover:underline text-xs font-medium block truncate max-w-xs"
-                          :title="`View contract for ${contract.service_address}`"
-                        >
-                          {{ contract.service_address }}
-                        </router-link>
-                        <div class="text-xs text-gray-500">
-                          <span :class="[
-                            'inline-block px-1 py-0.5 rounded text-xs',
-                            getContractStatus(contract.start_date, contract.end_date).status === 'active' ? 'bg-green-100 text-green-800' :
-                            getContractStatus(contract.start_date, contract.end_date).status === 'expired' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
-                          ]">
-                            {{ getContractStatus(contract.start_date, contract.end_date).label }}
-                          </span>
-                        </div>
-                      </div>
-                    </template>
-                    <div v-if="getCustomerContracts(customer.customer_id).length > 2" class="text-xs text-gray-500">
-                      +{{ getCustomerContracts(customer.customer_id).length - 2 }} more contracts
-                    </div>
-                  </template>
-                  <span v-else class="text-gray-400 italic text-xs">No contracts</span>
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ formatDate(customer.created_at) }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ formatDate(customer.updated_at) }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <div class="flex items-center gap-2">
-                  <button
-                    @click="viewCustomer(customer)"
-                    class="text-green-600 hover:text-green-900"
-                    title="View Customer"
+      <template #row="{ item }">
+        <td class="table-cell">
+          <div>
+            <div class="text-sm font-medium text-gray-900">{{ item.name_on_contract }}</div>
+            <div class="text-sm text-gray-500">ID: {{ item.unique_id }}</div>
+            <div class="text-xs text-gray-400">#{{ item.customer_id }}</div>
+          </div>
+        </td>
+        <td class="table-cell">
+          <div>
+            <div class="text-sm text-gray-900">{{ item.email || 'No email' }}</div>
+            <div class="text-sm text-gray-500">{{ item.phone_number || 'No phone' }}</div>
+          </div>
+        </td>
+        <td class="table-cell">
+          <div class="text-sm text-gray-900 max-w-xs truncate" :title="item.address">
+            {{ item.address }}
+          </div>
+        </td>
+        <td class="table-cell">
+          <div class="text-sm text-gray-900">
+            <template v-if="getCustomerContracts(item.customer_id).length > 0">
+              <template v-for="(contract, index) in getCustomerContracts(item.customer_id)" :key="contract.contract_id">
+                <div class="mb-1" v-if="index < 2">
+                  <router-link
+                    :to="`/contracts?view=${contract.contract_id}`"
+                    class="text-blue-600 hover:text-blue-800 hover:underline text-xs font-medium block truncate max-w-xs"
+                    :title="`View contract for ${contract.service_address}`"
                   >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                    </svg>
-                  </button>
-                  <button
-                    v-if="canManageCustomers"
-                    @click="editCustomer(customer)"
-                    class="text-blue-600 hover:text-blue-900"
-                    title="Edit Customer"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                    </svg>
-                  </button>
-                  <button
-                    v-if="canManageCustomers"
-                    @click="deleteCustomer(customer)"
-                    class="text-red-600 hover:text-red-900"
-                    title="Delete Customer"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                  </button>
+                    {{ contract.service_address }}
+                  </router-link>
+                  <div class="text-xs text-gray-500">
+                    <span :class="getContractStatusClass(contract.start_date, contract.end_date)">
+                      {{ getContractStatus(contract.start_date, contract.end_date).label }}
+                    </span>
+                  </div>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div v-if="filteredCustomers.length === 0" class="p-8 text-center text-gray-500">
-          <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
-          </svg>
-          <p class="mt-2">No customers found</p>
-          <p class="text-sm text-gray-400">
-            {{ searchQuery ? 'Try adjusting your search' : 'Click "Add Customer" to create your first customer' }}
-          </p>
-        </div>
-      </div>
-    </div>
+              </template>
+              <div v-if="getCustomerContracts(item.customer_id).length > 2" class="text-xs text-gray-500">
+                +{{ getCustomerContracts(item.customer_id).length - 2 }} more contracts
+              </div>
+            </template>
+            <span v-else class="text-gray-400 italic text-xs">No contracts</span>
+          </div>
+        </td>
+        <td class="table-cell text-sm text-gray-500">
+          {{ formatDate(item.created_at) }}
+        </td>
+        <td class="table-cell text-sm text-gray-500">
+          {{ formatDate(item.updated_at) }}
+        </td>
+        <td class="table-cell">
+          <div class="flex items-center gap-2">
+            <button
+              @click.stop="viewCustomer(item)"
+              class="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-100"
+              title="View Customer"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+            </button>
+            <button
+              v-if="canManageCustomers"
+              @click.stop="editCustomer(item)"
+              class="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-100"
+              title="Edit Customer"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+            </button>
+            <button
+              v-if="canManageCustomers"
+              @click.stop="deleteCustomer(item)"
+              class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-100"
+              title="Delete Customer"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
+          </div>
+        </td>
+      </template>
+    </DataTable>
 
     <!-- Create Customer Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-10 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-        <form @submit.prevent="handleCreateCustomer">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-medium text-gray-900">Add New Customer</h3>
-            <button
-              type="button"
-              @click="closeCreateModal"
-              class="text-gray-400 hover:text-gray-600"
-            >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
+    <FormModal
+      :open="showCreateModal"
+      entity-name="Customer"
+      :validation-rules="customerValidationRules"
+      :submit-handler="handleCreateCustomer"
+      @close="closeCreateModal"
+      @saved="handleCustomerSaved"
+    >
+      <template #default="{ form, errors }">
+        <div class="space-y-4">
+          <FormField
+            v-model="form.name_on_contract"
+            type="text"
+            label="Customer Name"
+            placeholder="Enter customer name"
+            :error="errors.name_on_contract"
+            required
+          />
 
-          <div v-if="createError" class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {{ createError }}
-          </div>
+          <FormField
+            v-model="form.unique_id"
+            type="text"
+            label="Unique ID"
+            placeholder="Enter unique identifier"
+            :error="errors.unique_id"
+            required
+          />
 
-          <div class="space-y-4">
-            <div>
-              <label for="customerName" class="block text-sm font-medium text-gray-700 mb-1">
-                Customer Name *
-              </label>
-              <input
-                id="customerName"
-                v-model="createForm.name_on_contract"
-                type="text"
-                required
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter customer name"
-              />
-            </div>
+          <FormField
+            v-model="form.email"
+            type="email"
+            label="Email"
+            placeholder="Enter email address"
+            :error="errors.email"
+          />
 
-            <div>
-              <label for="uniqueId" class="block text-sm font-medium text-gray-700 mb-1">
-                Unique ID *
-              </label>
-              <input
-                id="uniqueId"
-                v-model="createForm.unique_id"
-                type="text"
-                required
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter unique identifier"
-              />
-            </div>
+          <FormField
+            v-model="form.phone_number"
+            type="tel"
+            label="Phone Number"
+            placeholder="Enter phone number"
+            :error="errors.phone_number"
+          />
 
-            <div>
-              <label for="customerEmail" class="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                id="customerEmail"
-                v-model="createForm.email"
-                type="email"
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter email address"
-              />
-            </div>
-
-            <div>
-              <label for="customerPhone" class="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
-              </label>
-              <input
-                id="customerPhone"
-                v-model="createForm.phone_number"
-                type="tel"
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter phone number"
-              />
-            </div>
-
-            <div>
-              <label for="customerAddress" class="block text-sm font-medium text-gray-700 mb-1">
-                Address *
-              </label>
-              <textarea
-                id="customerAddress"
-                v-model="createForm.address"
-                required
-                rows="3"
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter full address"
-              ></textarea>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              @click="closeCreateModal"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              :disabled="createLoading || !isCreateFormValid"
-              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
-            >
-              {{ createLoading ? 'Creating...' : 'Create Customer' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          <FormField
+            v-model="form.address"
+            type="textarea"
+            label="Address"
+            placeholder="Enter full address"
+            :rows="3"
+            :error="errors.address"
+            required
+          />
+        </div>
+      </template>
+    </FormModal>
 
     <!-- Edit Customer Modal -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-10 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-        <form @submit.prevent="handleUpdateCustomer">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-medium text-gray-900">Edit Customer</h3>
-            <button
-              type="button"
-              @click="closeEditModal"
-              class="text-gray-400 hover:text-gray-600"
-            >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
+    <FormModal
+      :open="showEditModal"
+      entity-name="Customer"
+      :initial-data="selectedCustomer"
+      :validation-rules="customerValidationRules"
+      :submit-handler="handleUpdateCustomer"
+      @close="closeEditModal"
+      @saved="handleCustomerSaved"
+    >
+      <template #default="{ form, errors }">
+        <div class="space-y-4">
+          <FormField
+            v-model="form.name_on_contract"
+            type="text"
+            label="Customer Name"
+            placeholder="Enter customer name"
+            :error="errors.name_on_contract"
+            required
+          />
 
-          <div v-if="editError" class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {{ editError }}
-          </div>
+          <FormField
+            v-model="form.unique_id"
+            type="text"
+            label="Unique ID"
+            placeholder="Enter unique identifier"
+            :error="errors.unique_id"
+            required
+          />
 
-          <div class="space-y-4">
-            <div>
-              <label for="editCustomerName" class="block text-sm font-medium text-gray-700 mb-1">
-                Customer Name *
-              </label>
-              <input
-                id="editCustomerName"
-                v-model="editForm.name_on_contract"
-                type="text"
-                required
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+          <FormField
+            v-model="form.email"
+            type="email"
+            label="Email"
+            placeholder="Enter email address"
+            :error="errors.email"
+          />
 
-            <div>
-              <label for="editUniqueId" class="block text-sm font-medium text-gray-700 mb-1">
-                Unique ID *
-              </label>
-              <input
-                id="editUniqueId"
-                v-model="editForm.unique_id"
-                type="text"
-                required
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+          <FormField
+            v-model="form.phone_number"
+            type="tel"
+            label="Phone Number"
+            placeholder="Enter phone number"
+            :error="errors.phone_number"
+          />
 
-            <div>
-              <label for="editCustomerEmail" class="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                id="editCustomerEmail"
-                v-model="editForm.email"
-                type="email"
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label for="editCustomerPhone" class="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
-              </label>
-              <input
-                id="editCustomerPhone"
-                v-model="editForm.phone_number"
-                type="tel"
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label for="editCustomerAddress" class="block text-sm font-medium text-gray-700 mb-1">
-                Address *
-              </label>
-              <textarea
-                id="editCustomerAddress"
-                v-model="editForm.address"
-                required
-                rows="3"
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-              ></textarea>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              @click="closeEditModal"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              :disabled="editLoading || !isEditFormValid"
-              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
-            >
-              {{ editLoading ? 'Updating...' : 'Update Customer' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          <FormField
+            v-model="form.address"
+            type="textarea"
+            label="Address"
+            placeholder="Enter full address"
+            :rows="3"
+            :error="errors.address"
+            required
+          />
+        </div>
+      </template>
+    </FormModal>
 
     <!-- View Customer Modal -->
-    <div v-if="showViewModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">Customer Details</h3>
-          <button
-            type="button"
-            @click="showViewModal = false"
-            class="text-gray-400 hover:text-gray-600"
-          >
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
+    <BaseModal
+      :open="showViewModal"
+      title="Customer Details"
+      size="large"
+      @close="showViewModal = false"
+    >
+      <div v-if="selectedCustomer" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h4 class="font-medium text-gray-900 mb-3">Basic Information</h4>
+            <div class="space-y-2 text-sm">
+              <div><strong>Name:</strong> {{ selectedCustomer.name_on_contract }}</div>
+              <div><strong>Unique ID:</strong> {{ selectedCustomer.unique_id }}</div>
+              <div><strong>Email:</strong> {{ selectedCustomer.email || 'Not provided' }}</div>
+              <div><strong>Phone:</strong> {{ selectedCustomer.phone_number || 'Not provided' }}</div>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="font-medium text-gray-900 mb-3">Record Information</h4>
+            <div class="space-y-2 text-sm">
+              <div><strong>Customer ID:</strong> #{{ selectedCustomer.customer_id }}</div>
+              <div><strong>Created:</strong> {{ formatDate(selectedCustomer.created_at) }}</div>
+              <div><strong>Last Updated:</strong> {{ formatDate(selectedCustomer.updated_at) }}</div>
+            </div>
+          </div>
         </div>
 
-        <div v-if="selectedCustomer" class="space-y-4">
-          <div class="grid grid-cols-1 gap-4">
-            <div>
-              <h4 class="font-medium text-gray-900 mb-2">Basic Information</h4>
-              <div class="space-y-2 text-sm">
-                <div><strong>Name:</strong> {{ selectedCustomer.name_on_contract }}</div>
-                <div><strong>Unique ID:</strong> {{ selectedCustomer.unique_id }}</div>
-                <div><strong>Email:</strong> {{ selectedCustomer.email || 'Not provided' }}</div>
-                <div><strong>Phone:</strong> {{ selectedCustomer.phone_number || 'Not provided' }}</div>
-              </div>
-            </div>
+        <div>
+          <h4 class="font-medium text-gray-900 mb-3">Address</h4>
+          <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+            {{ selectedCustomer.address }}
+          </div>
+        </div>
 
-            <div>
-              <h4 class="font-medium text-gray-900 mb-2">Address</h4>
-              <div class="text-sm text-gray-600">
-                {{ selectedCustomer.address }}
-              </div>
-            </div>
-
-            <!-- Customer Contracts Section -->
-            <div>
-              <h4 class="font-medium text-gray-900 mb-2">Associated Contracts</h4>
-              <div class="text-sm">
-                <template v-if="getCustomerContracts(selectedCustomer.customer_id).length > 0">
-                  <div class="space-y-2">
-                    <div 
-                      v-for="contract in getCustomerContracts(selectedCustomer.customer_id)" 
-                      :key="contract.contract_id"
-                      class="border border-gray-200 rounded p-3"
-                    >
-                      <div class="flex justify-between items-start">
-                        <div class="flex-1">
-                          <router-link
-                            :to="`/contracts?view=${contract.contract_id}`"
-                            class="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                            :title="`View contract for ${contract.service_address}`"
-                          >
-                            {{ contract.service_address }}
-                          </router-link>
-                          <div class="text-xs text-gray-500 mt-1">
-                            Contract #{{ contract.contract_id }}
-                          </div>
-                          <div class="text-xs text-gray-500">
-                            {{ formatDate(contract.start_date) }} - {{ formatDate(contract.end_date) }}
-                          </div>
-                        </div>
-                        <span :class="[
-                          'inline-block px-2 py-1 rounded text-xs',
-                          getContractStatus(contract.start_date, contract.end_date).status === 'active' ? 'bg-green-100 text-green-800' :
-                          getContractStatus(contract.start_date, contract.end_date).status === 'expired' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
-                        ]">
-                          {{ getContractStatus(contract.start_date, contract.end_date).label }}
-                        </span>
+        <!-- Customer Contracts Section -->
+        <div>
+          <h4 class="font-medium text-gray-900 mb-3">Associated Contracts</h4>
+          <div class="text-sm">
+            <template v-if="getCustomerContracts(selectedCustomer.customer_id).length > 0">
+              <div class="space-y-3">
+                <div 
+                  v-for="contract in getCustomerContracts(selectedCustomer.customer_id)" 
+                  :key="contract.contract_id"
+                  class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
+                >
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <router-link
+                        :to="`/contracts?view=${contract.contract_id}`"
+                        class="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                        :title="`View contract for ${contract.service_address}`"
+                      >
+                        {{ contract.service_address }}
+                      </router-link>
+                      <div class="text-xs text-gray-500 mt-1">
+                        Contract #{{ contract.contract_id }}
+                      </div>
+                      <div class="text-xs text-gray-500">
+                        {{ formatDate(contract.start_date) }} - {{ formatDate(contract.end_date) }}
                       </div>
                     </div>
+                    <span :class="getContractStatusClass(contract.start_date, contract.end_date)">
+                      {{ getContractStatus(contract.start_date, contract.end_date).label }}
+                    </span>
                   </div>
-                </template>
-                <span v-else class="text-gray-400 italic">No contracts associated with this customer</span>
+                </div>
               </div>
-            </div>
-
-            <div>
-              <h4 class="font-medium text-gray-900 mb-2">Record Information</h4>
-              <div class="space-y-2 text-sm">
-                <div><strong>Customer ID:</strong> #{{ selectedCustomer.customer_id }}</div>
-                <div><strong>Created:</strong> {{ formatDate(selectedCustomer.created_at) }}</div>
-                <div><strong>Last Updated:</strong> {{ formatDate(selectedCustomer.updated_at) }}</div>
-              </div>
+            </template>
+            <div v-else class="text-gray-400 italic text-center py-4">
+              No contracts associated with this customer
             </div>
           </div>
         </div>
-
-        <div class="flex justify-end mt-6 pt-4 border-t border-gray-200">
-          <button
-            @click="showViewModal = false"
-            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
-          >
-            Close
-          </button>
-        </div>
       </div>
-    </div>
+
+      <template #footer>
+        <button
+          @click="showViewModal = false"
+          class="btn btn-outline"
+        >
+          Close
+        </button>
+      </template>
+    </BaseModal>
 
     <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="mt-3 text-center">
-          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-            <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-            </svg>
-          </div>
-          <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2">Delete Customer</h3>
-          <div class="mt-2 px-7 py-3">
-            <p class="text-sm text-gray-500">
-              Are you sure you want to delete <strong>{{ selectedCustomer?.name_on_contract }}</strong>?
-              This action cannot be undone.
-            </p>
-          </div>
-          <div class="items-center px-4 py-3">
-            <button
-              @click="confirmDelete"
-              :disabled="deleteLoading"
-              class="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-24 mr-2 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50"
-            >
-              {{ deleteLoading ? 'Deleting...' : 'Delete' }}
-            </button>
-            <button
-              @click="showDeleteModal = false"
-              class="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-24 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ConfirmationModal
+      :open="showDeleteModal"
+      type="danger"
+      :entity-name="'customer'"
+      :entity-value="selectedCustomer?.name_on_contract"
+      :loading="deleteLoading"
+      @close="showDeleteModal = false"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { customerService, customerUtils } from '@/services/customers'
-import { useRoute } from 'vue-router'
 import api from '@/services/api'
 
-// Store
-const authStore = useAuthStore()
+// Components
+import DataTable from '@/components/tables/DataTable.vue'
+import FormModal from '@/components/ui/FormModal.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
+import ConfirmationModal from '@/components/ui/ConfirmationModal.vue'
+import FormField from '@/components/forms/FormField.vue'
 
-// Routes
+// Store and route
+const authStore = useAuthStore()
 const route = useRoute()
 
 // Reactive data
 const loading = ref(false)
 const error = ref('')
 const customers = ref([])
-const contracts = ref([])  // Add contracts data
-const searchQuery = ref('')
+const contracts = ref([])
 
 // Modal states
 const showCreateModal = ref(false)
@@ -648,50 +437,81 @@ const showEditModal = ref(false)
 const showViewModal = ref(false)
 const showDeleteModal = ref(false)
 const selectedCustomer = ref(null)
-
-// Form states
-const createLoading = ref(false)
-const createError = ref('')
-const editLoading = ref(false)
-const editError = ref('')
 const deleteLoading = ref(false)
 
-// Form data
-const createForm = ref({
-  name_on_contract: '',
-  unique_id: '',
-  email: '',
-  phone_number: '',
-  address: ''
-})
+// Helper functions (defined before using in reactive computations)
+const formatDate = (dateString) => {
+  if (!dateString) return 'Never'
 
-const editForm = ref({
-  name_on_contract: '',
-  unique_id: '',
-  email: '',
-  phone_number: '',
-  address: ''
-})
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch (error) {
+    console.error('Error formatting date:', error)
+    return 'Invalid Date'
+  }
+}
+
+// Table configuration
+const tableColumns = [
+  { key: 'customer', label: 'Customer', sortable: true, searchable: true },
+  { key: 'contact', label: 'Contact Info', sortable: false },
+  { key: 'address', label: 'Address', sortable: true, searchable: true },
+  { key: 'contracts', label: 'Contracts', sortable: false },
+  { key: 'created_at', label: 'Created', sortable: true },
+  { key: 'updated_at', label: 'Updated', sortable: true },
+  { key: 'actions', label: 'Actions', sortable: false }
+]
+
+// Form validation rules
+const customerValidationRules = {
+  name_on_contract: {
+    required: true,
+    minLength: 2,
+    maxLength: 255
+  },
+  unique_id: {
+    required: true,
+    minLength: 1,
+    maxLength: 255,
+    validator: (value, form) => {
+      if (!value) return true
+      
+      // Check uniqueness (skip for editing same customer)
+      const existingCustomer = customers.value.find(c => 
+        c.unique_id === value && 
+        (!selectedCustomer.value || c.customer_id !== selectedCustomer.value.customer_id)
+      )
+      
+      return !existingCustomer || 'This unique ID is already in use'
+    }
+  },
+  email: {
+    email: true,
+    maxLength: 255
+  },
+  phone_number: {
+    phone: true,
+    maxLength: 15
+  },
+  address: {
+    required: true,
+    minLength: 5,
+    maxLength: 1000
+  }
+}
 
 // Computed properties
 const canManageCustomers = computed(() => {
   return authStore.hasPermission('customers', 'create') ||
          authStore.hasPermission('customers', 'update') ||
          authStore.user?.role?.name === 'admin'
-})
-
-const filteredCustomers = computed(() => {
-  if (!searchQuery.value) {
-    return customers.value
-  }
-
-  const query = searchQuery.value.toLowerCase()
-  return customers.value.filter(customer =>
-    customer.name_on_contract.toLowerCase().includes(query) ||
-    customer.email?.toLowerCase().includes(query) ||
-    customer.unique_id?.toLowerCase().includes(query) ||
-    customer.address.toLowerCase().includes(query)
-  )
 })
 
 const recentCustomers = computed(() => {
@@ -713,18 +533,6 @@ const customersWithContracts = computed(() => {
   ).length
 })
 
-const isCreateFormValid = computed(() => {
-  return createForm.value.name_on_contract.trim() !== '' &&
-         createForm.value.unique_id.trim() !== '' &&
-         createForm.value.address.trim() !== ''
-})
-
-const isEditFormValid = computed(() => {
-  return editForm.value.name_on_contract.trim() !== '' &&
-         editForm.value.unique_id.trim() !== '' &&
-         editForm.value.address.trim() !== ''
-})
-
 // Methods
 const loadCustomers = async () => {
   loading.value = true
@@ -740,7 +548,6 @@ const loadCustomers = async () => {
   }
 }
 
-// Load contracts for the customer-contract mapping
 const loadContracts = async () => {
   try {
     const response = await api.get('/contracts')
@@ -751,19 +558,15 @@ const loadContracts = async () => {
   }
 }
 
-// Get contracts for a specific customer
 const getCustomerContracts = (customerId) => {
   return contracts.value.filter(contract => {
-    // Handle both possible data structures from your contracts
     if (contract.customers && Array.isArray(contract.customers)) {
       return contract.customers.some(customer => customer.customer_id === customerId)
     }
-    // Fallback for single customer structure
     return contract.customer_id === customerId
   })
 }
 
-// Contract status helper (reused from ContractsView)
 const getContractStatus = (startDate, endDate) => {
   const now = new Date()
   const start = new Date(startDate)
@@ -778,56 +581,44 @@ const getContractStatus = (startDate, endDate) => {
   }
 }
 
-const clearFilters = () => {
-  searchQuery.value = ''
+const getContractStatusClass = (startDate, endDate) => {
+  const status = getContractStatus(startDate, endDate).status
+  const baseClass = 'inline-block px-2 py-1 rounded text-xs font-medium'
+  
+  const statusClasses = {
+    active: 'bg-green-100 text-green-800',
+    expired: 'bg-red-100 text-red-800',
+    upcoming: 'bg-yellow-100 text-yellow-800'
+  }
+  
+  return `${baseClass} ${statusClasses[status]}`
 }
 
-// Modal management
+// Modal handlers
 const closeCreateModal = () => {
   showCreateModal.value = false
-  createForm.value = {
-    name_on_contract: '',
-    unique_id: '',
-    email: '',
-    phone_number: '',
-    address: ''
-  }
-  createError.value = ''
 }
 
 const closeEditModal = () => {
   showEditModal.value = false
   selectedCustomer.value = null
-  editError.value = ''
 }
 
-// Customer operations
-const handleCreateCustomer = async () => {
-  createLoading.value = true
-  createError.value = ''
+const handleCreateCustomer = async (formData) => {
+  const response = await customerService.customers.create(formData)
+  return response
+}
 
-  try {
-    console.log('Creating customer with form data:', createForm.value)
+const handleUpdateCustomer = async (formData) => {
+  const response = await customerService.customers.update(selectedCustomer.value.customer_id, formData)
+  return response
+}
 
-    // Validate form data
-    const validation = customerUtils.validateCustomerData(createForm.value)
-    if (!validation.isValid) {
-      createError.value = validation.errors.join(', ')
-      return
-    }
-
-    const response = await customerService.customers.create(createForm.value)
-    console.log('Customer creation response:', response)
-
-    await loadCustomers()
-    await loadContracts() // Reload contracts to update relationships
-    closeCreateModal()
-  } catch (err) {
-    console.error('Customer creation failed:', err)
-    createError.value = customerUtils.formatError(err)
-  } finally {
-    createLoading.value = false
-  }
+const handleCustomerSaved = () => {
+  loadCustomers()
+  loadContracts()
+  closeCreateModal()
+  closeEditModal()
 }
 
 const viewCustomer = (customer) => {
@@ -837,41 +628,7 @@ const viewCustomer = (customer) => {
 
 const editCustomer = (customer) => {
   selectedCustomer.value = { ...customer }
-  editForm.value = {
-    name_on_contract: customer.name_on_contract,
-    unique_id: customer.unique_id,
-    email: customer.email || '',
-    phone_number: customer.phone_number || '',
-    address: customer.address
-  }
-  editError.value = ''
   showEditModal.value = true
-}
-
-const handleUpdateCustomer = async () => {
-  editLoading.value = true
-  editError.value = ''
-
-  try {
-    console.log('Updating customer with form data:', editForm.value)
-
-    // Validate form data
-    const validation = customerUtils.validateCustomerData(editForm.value)
-    if (!validation.isValid) {
-      editError.value = validation.errors.join(', ')
-      return
-    }
-
-    await customerService.customers.update(selectedCustomer.value.customer_id, editForm.value)
-    await loadCustomers()
-    await loadContracts() // Reload contracts to update relationships
-    closeEditModal()
-  } catch (err) {
-    console.error('Customer update failed:', err)
-    editError.value = customerUtils.formatError(err)
-  } finally {
-    editLoading.value = false
-  }
 }
 
 const deleteCustomer = (customer) => {
@@ -885,7 +642,7 @@ const confirmDelete = async () => {
   try {
     await customerService.customers.delete(selectedCustomer.value.customer_id)
     await loadCustomers()
-    await loadContracts() // Reload contracts to update relationships
+    await loadContracts()
     showDeleteModal.value = false
     selectedCustomer.value = null
   } catch (err) {
@@ -895,27 +652,7 @@ const confirmDelete = async () => {
   }
 }
 
-// Helper functions
-const formatDate = (dateString) => {
-  if (!dateString) return 'Never'
-
-  try {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  } catch (error) {
-    console.error('Error formatting date:', error)
-    return 'Invalid Date'
-  }
-}
-
 onMounted(async () => {
-  // Load both customers and contracts
   await Promise.allSettled([
     loadCustomers(),
     loadContracts()
@@ -924,7 +661,6 @@ onMounted(async () => {
   // Check if there's a view parameter
   const viewId = route.query.view
   if (viewId) {
-    // Find the customer and open the view modal
     const customer = customers.value.find(c => c.customer_id === parseInt(viewId))
     if (customer) {
       viewCustomer(customer)
