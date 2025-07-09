@@ -10,7 +10,8 @@
     @close="$emit('close')"
     @saved="handleSaved"
   >
-    <template #default="{ form, errors, isEditing }">
+    <!-- FIXED: Added isFormValid to the slot props destructuring -->
+    <template #default="{ form, errors, isEditing, isFormValid }">
       <div class="space-y-4">
         <!-- Server Error Display -->
         <div v-if="serverError" class="p-3 bg-red-50 border border-red-200 rounded-md">
@@ -172,6 +173,8 @@
             </div>
           </div>
         </div>
+
+
       </div>
     </template>
   </FormModal>
@@ -184,6 +187,7 @@ import FormField from '@/components/forms/FormField.vue'
 import ActionIcon from '@/components/icons/ActionIcons.vue'
 import api from '@/services/api'
 import { userService, userUtils } from '@/services/users'
+import { useErrorHandler } from '@/utils/errorHandling'
 import {
   validatePassword,
   getPasswordStrength,
@@ -208,6 +212,14 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'saved'])
+
+// Computed property for development mode
+const isDevelopment = computed(() => {
+  return import.meta.env.MODE === 'development'
+})
+
+// Error handling
+const { handleError } = useErrorHandler('User Form')
 
 const roles = ref([])
 const rolesLoading = ref(false)
@@ -241,7 +253,7 @@ const initialData = computed(() => {
       first_name: '',
       last_name: '',
       role_id: '',
-      active: true
+      active: true // Default to active for new users
     }
   }
 })
@@ -254,7 +266,7 @@ const roleOptions = computed(() => {
 })
 
 const validationRules = computed(() => {
-  return {
+  const rules = {
     username: validation()
       .required('Username')
       .minLength(3)
@@ -276,7 +288,7 @@ const validationRules = computed(() => {
       .email()
       .unique({
         items: props.allUsers,
-        field: 'email', 
+        field: 'email',
         idField: 'user_id',
         currentItem: isEditing.value ? props.user : null,
         caseSensitive: false,
@@ -297,11 +309,21 @@ const validationRules = computed(() => {
       validator: (value) => {
         if (!value) return 'Please select a role'
 
-        if (rolesLoading.value || roles.value.length === 0) {
+        // Don't validate if roles are still loading
+        if (rolesLoading.value) {
           return true
         }
 
-        const roleExists = roles.value.some(role => role.role_id === parseInt(value))
+        // Don't validate if no roles available yet
+        if (roles.value.length === 0) {
+          return true
+        }
+
+        const roleExists = roles.value.some(role => {
+          // Handle both string and number role IDs
+          return role.role_id === parseInt(value) || role.role_id === value
+        })
+
         return roleExists || 'Selected role does not exist'
       }
     },
@@ -309,14 +331,18 @@ const validationRules = computed(() => {
     password: {
       required: false,
       validator: (value) => {
-        if (isEditing.value) return true
-        if (!value || value.trim() === '') return true
+        if (isEditing.value) return true // No password validation for edits
+        if (!value || value.trim() === '') return true // Optional for new users
         return validatePassword(value)
       }
     },
 
-    active: {}
+    active: {
+      required: false // Boolean field, always valid
+    }
   }
+
+  return rules
 })
 
 const getStrengthColorClass = (password, isBar = false) => {
@@ -377,13 +403,17 @@ const closeModalAfterCopy = async () => {
 
 const fetchRoles = async () => {
   rolesLoading.value = true
+  serverError.value = ''
+
   try {
     const response = await api.get('/auth/roles')
     roles.value = response.data || []
   } catch (err) {
     console.error('Failed to fetch roles:', err)
     roles.value = []
-    serverError.value = 'Failed to load roles. Please refresh and try again.'
+    serverError.value = handleError(err, {
+      fallbackMessage: 'Failed to load roles. Please refresh and try again.'
+    })
   } finally {
     rolesLoading.value = false
   }
@@ -409,7 +439,7 @@ const handleSubmit = async (formData, isEditingMode) => {
     return response
   } catch (error) {
     console.error('Failed to save user:', error)
-    serverError.value = userUtils.formatError(error)
+    serverError.value = handleError(error)
     await nextTick()
     throw error
   }

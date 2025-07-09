@@ -1,206 +1,163 @@
 <template>
-  <div class="space-y-6">
+  <div>
     <!-- Header -->
-    <div class="flex justify-between items-center">
-      <div>
-        <h1 class="text-2xl font-bold text-gray-900">User Management</h1>
-        <p class="text-gray-600">Manage user accounts, roles, and permissions</p>
-      </div>
-      <button
-        v-if="canManageUsers"
-        @click="showCreateModal = true"
-        class="btn btn-primary"
-      >
-        <ActionIcon name="add" size="sm" class="mr-2" />
-        Add User
-      </button>
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">User Management</h1>
+      <p class="text-gray-600">Manage user accounts, roles, and permissions</p>
     </div>
 
-    <!-- User Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <ActionIcon name="users" size="lg" class="text-blue-600" />
-          </div>
-          <div class="ml-5 w-0 flex-1">
-            <dl>
-              <dt class="text-sm font-medium text-gray-500 truncate">Total Users</dt>
-              <dd class="text-lg font-medium text-gray-900">{{ userStats.total }}</dd>
-            </dl>
-          </div>
-        </div>
-      </div>
+    <!-- ✅ CONSOLIDATED: Stats Grid using reusable component -->
+    <StatsGrid :stats="userStatsFormatted" />
 
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <ActionIcon name="success" size="lg" class="text-green-600" />
-          </div>
-          <div class="ml-5 w-0 flex-1">
-            <dl>
-              <dt class="text-sm font-medium text-gray-500 truncate">Active Users</dt>
-              <dd class="text-lg font-medium text-gray-900">{{ userStats.active }}</dd>
-            </dl>
-          </div>
-        </div>
-      </div>
+    <!-- ✅ CONSOLIDATED: Filter Bar (Search handled by DataTable) -->
+    <div class="card mb-6">
+      <div class="p-6">
+        <div class="flex flex-col md:flex-row gap-4">
+          <!-- Filter Controls -->
+          <div class="flex gap-2">
+            <!-- Role Filter -->
+            <select
+              v-model="roleFilter"
+              class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Roles</option>
+              <option
+                v-for="role in availableRoles"
+                :key="role.role_id"
+                :value="role.role_id"
+              >
+                {{ role.name }}
+              </option>
+            </select>
 
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <ActionIcon name="warning" size="lg" class="text-yellow-600" />
+            <!-- Status Filter -->
+            <select
+              v-model="statusFilter"
+              class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
           </div>
-          <div class="ml-5 w-0 flex-1">
-            <dl>
-              <dt class="text-sm font-medium text-gray-500 truncate">Inactive Users</dt>
-              <dd class="text-lg font-medium text-gray-900">{{ userStats.inactive }}</dd>
-            </dl>
-          </div>
-        </div>
-      </div>
 
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <ActionIcon name="clock" size="lg" class="text-purple-600" />
-          </div>
-          <div class="ml-5 w-0 flex-1">
-            <dl>
-              <dt class="text-sm font-medium text-gray-500 truncate">Recent (30 days)</dt>
-              <dd class="text-lg font-medium text-gray-900">{{ userStats.recent }}</dd>
-            </dl>
+          <!-- Action Buttons -->
+          <div class="flex gap-2 ml-auto">
+            <button @click="clearFilters" class="btn btn-outline">
+              <ActionIcon name="clear" size="xs" class="mr-1" />
+              Clear Filters
+            </button>
+            <button @click="loadUsers" class="btn btn-outline">
+              <ActionIcon name="refresh" size="xs" class="mr-1" />
+              Refresh
+            </button>
+            <button
+              v-if="canManageUsers"
+              @click="showCreateModal = true"
+              class="btn btn-primary"
+            >
+              <ActionIcon name="add" size="xs" class="mr-1" />
+              Add User
+            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Users Table -->
+    <!-- ✅ CONSOLIDATED: Users Table using DataTable component -->
     <DataTable
-      :items="users"
-      :columns="tableColumns"
+      :items="filteredUsers"
+      :columns="userColumns"
       :loading="loading"
       :error="error"
       title="Users"
-      searchable
-      paginated
+      :searchable="true"
+      search-placeholder="Search users by name, username, email, or role..."
+      :search-columns="['username', 'email', 'first_name', 'last_name', 'display_name', 'role_name']"
+      :paginated="true"
       :initial-page-size="25"
-      search-placeholder="Search users by name, username, or email..."
+      :sortable="true"
+      :initial-sort="{ column: 'created_at', direction: 'desc' }"
+      :clickable-rows="true"
+      :show-refresh="true"
       empty-state-title="No users found"
-      empty-state-message="Click 'Add User' to create your first user"
+      :empty-state-message="roleFilter || statusFilter ? 'No users match your filter criteria' : 'No users have been created yet'"
       @refresh="loadUsers"
       @row-click="viewUser"
     >
-      <template #row="{ item }">
-        <td class="table-cell">
-          <div class="flex items-center">
-            <div class="flex-shrink-0 h-10 w-10">
-              <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
-                <span class="text-sm font-medium text-white">
-                  {{ userUtils.getInitials(item) }}
-                </span>
-              </div>
-            </div>
-            <div class="ml-4">
-              <div class="text-sm font-medium text-gray-900">
-                {{ userUtils.getDisplayName(item) }}
-              </div>
-              <div class="text-sm text-gray-500">
-                {{ item.username }}
-              </div>
-            </div>
-          </div>
-        </td>
-        <td class="table-cell">
-          <div class="text-sm text-gray-900">{{ item.email }}</div>
-          <div class="text-sm text-gray-500">ID: {{ item.user_id }}</div>
-        </td>
-        <td class="table-cell">
-          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                :class="userUtils.getRoleBadgeClass(item.role)">
-            {{ item.role?.name || 'No Role' }}
-          </span>
-        </td>
-        <td class="table-cell">
-          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                :class="userUtils.getStatusBadgeClass(item.active)">
-            <ActionIcon
-              :name="item.active ? 'success' : 'warning'"
-              size="xs"
-              :class="item.active ? 'text-green-400 mr-1' : 'text-yellow-400 mr-1'"
-            />
-            {{ item.active ? 'Active' : 'Inactive' }}
-          </span>
-        </td>
-        <td class="table-cell text-sm text-gray-500">
-          {{ formatDate(item.last_login) }}
-        </td>
-        <td class="table-cell text-sm text-gray-500">
-          {{ formatDate(item.created_at) }}
-        </td>
-        <td class="table-cell">
-          <div class="flex items-center gap-2">
-            <!-- View Button -->
-            <button
-              @click.stop="viewUser(item)"
-              class="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-100"
-              title="View User"
-            >
-              <ActionIcon name="view" size="sm" />
-            </button>
-
-            <!-- Edit Button -->
-            <button
-              v-if="canManageUsers"
-              @click.stop="editUser(item)"
-              class="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-100"
-              title="Edit User"
-            >
-              <ActionIcon name="edit" size="sm" />
-            </button>
-
-            <!-- Password Button -->
-            <button
-              v-if="canManageUsers"
-              @click.stop="changePassword(item)"
-              class="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-100"
-              title="Change Password"
-            >
-              <ActionIcon name="key" size="sm" />
-            </button>
-
-            <!-- Deactivate/Activate Button -->
-            <button
-              v-if="canManageUsers && !userUtils.isSystemUser(item)"
-              @click.stop="toggleUserStatus(item)"
-              :class="item.active
-                ? 'text-yellow-600 hover:text-yellow-900 hover:bg-yellow-100'
-                : 'text-green-600 hover:text-green-900 hover:bg-green-100'"
-              class="p-1 rounded"
-              :title="item.active ? 'Deactivate User' : 'Activate User'"
-            >
-              <ActionIcon :name="item.active ? 'deactivate' : 'activate'" size="sm" />
-            </button>
-
-            <!-- Delete Button -->
-            <button
-              v-if="canManageUsers && !userUtils.isSystemUser(item)"
-              @click.stop="deleteUser(item)"
-              class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-100"
-              title="Delete User"
-            >
-              <ActionIcon name="delete" size="sm" />
-            </button>
-
-            <!-- System User Protection Notice -->
-            <div v-if="userUtils.isSystemUser(item)" class="ml-2">
-              <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                <ActionIcon name="lock" size="xs" class="mr-1" />
-                Protected
+    >
+    >
+      <!-- Custom cell renderers -->
+      <template #cell-display_name="{ item }">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 h-10 w-10">
+            <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
+              <span class="text-sm font-medium text-white">
+                {{ userUtils.getInitials(item) }}
               </span>
             </div>
           </div>
-        </td>
+          <div class="ml-4">
+            <div class="text-sm font-medium text-gray-900">
+              {{ userUtils.getDisplayName(item) }}
+            </div>
+            <div class="text-sm text-gray-500">
+              {{ item.username }}
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template #cell-email="{ item }">
+        <div>
+          <div class="text-sm text-gray-900">{{ item.email }}</div>
+          <div class="text-sm text-gray-500">ID: {{ item.user_id }}</div>
+        </div>
+      </template>
+
+      <template #cell-role_name="{ item }">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+              :class="userUtils.getRoleBadgeClass(item.role)">
+          {{ item.role?.name || 'No Role' }}
+        </span>
+      </template>
+
+      <template #cell-active="{ item }">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+              :class="userUtils.getStatusBadgeClass(item.active)">
+          <ActionIcon
+            :name="item.active ? 'success' : 'warning'"
+            size="xs"
+            :class="item.active ? 'text-green-400 mr-1' : 'text-yellow-400 mr-1'"
+          />
+          {{ item.active ? 'Active' : 'Inactive' }}
+        </span>
+      </template>
+
+      <template #cell-last_login="{ item }">
+        <span class="text-sm text-gray-500">
+          {{ formatDate(item.last_login) }}
+        </span>
+      </template>
+
+      <template #cell-created_at="{ item }">
+        <span class="text-sm text-gray-500">
+          {{ formatDate(item.created_at) }}
+        </span>
+      </template>
+
+      <template #cell-actions="{ item }">
+        <!-- ✅ CONSOLIDATED: Use ActionColumn component -->
+        <UserActionButtons
+          :user="item"
+          :can-manage="canManageUsers"
+          :is-protected="userUtils.isSystemUser(item)"
+          @view="viewUser"
+          @edit="editUser"
+          @password="changePassword"
+          @toggle="toggleUserStatus"
+          @delete="deleteUser"
+        />
       </template>
     </DataTable>
 
@@ -296,10 +253,7 @@
       </div>
 
       <template #footer>
-        <button
-          @click="showViewModal = false"
-          class="btn btn-outline"
-        >
+        <button @click="showViewModal = false" class="btn btn-outline">
           Close
         </button>
       </template>
@@ -377,27 +331,40 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { userService, userUtils } from '@/services/users'
 import { formatDate } from '@/utils/formatters'
+import { useErrorHandler } from '@/utils/errorHandling'
+import api from '@/services/api'
 
+// ✅ CONSOLIDATED: Import reusable components (removed SearchFilterBar since DataTable handles search)
 import ActionIcon from '@/components/icons/ActionIcons.vue'
+import StatsGrid from '@/components/ui/StatsGrid.vue'
 import DataTable from '@/components/tables/DataTable.vue'
 import UserFormModal from '@/components/admin/users/UserFormModal.vue'
 import PasswordManagementModal from '@/components/admin/users/PasswordManagementModal.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import ConfirmationModal from '@/components/ui/ConfirmationModal.vue'
+import UserActionButtons from '@/components/admin/users/UserActionButtons.vue'
 
 const authStore = useAuthStore()
 const route = useRoute()
+
+// Use your existing error handler
+const { handleError } = useErrorHandler('User Management')
 
 // Reactive data
 const loading = ref(false)
 const error = ref('')
 const users = ref([])
+const availableRoles = ref([]) // For filter dropdown
 const userStats = ref({
   total: 0,
   active: 0,
   inactive: 0,
   recent: 0
 })
+
+// ✅ CONSOLIDATED: Filter states (search handled by DataTable)
+const roleFilter = ref('')
+const statusFilter = ref('')
 
 // Modal states
 const showCreateModal = ref(false)
@@ -411,15 +378,51 @@ const deleteLoading = ref(false)
 const statusLoading = ref(false)
 const statusAction = ref('') // 'activate' or 'deactivate'
 
-// Table configuration
-const tableColumns = [
-  { key: 'user', label: 'User', sortable: true, searchable: true },
-  { key: 'email', label: 'Email & ID', sortable: true, searchable: true },
-  { key: 'role', label: 'Role', sortable: true },
-  { key: 'status', label: 'Status', sortable: true },
-  { key: 'last_login', label: 'Last Login', sortable: true },
-  { key: 'created_at', label: 'Created', sortable: true },
-  { key: 'actions', label: 'Actions', sortable: false }
+// ✅ CONSOLIDATED: Define table columns for DataTable with proper sorting paths
+const userColumns = [
+  {
+    key: 'display_name', // We'll add this computed field to each user
+    label: 'User',
+    sortable: true,
+    searchable: true
+  },
+  {
+    key: 'email',
+    label: 'Email & ID', 
+    sortable: true,
+    searchable: true
+  },
+  {
+    key: 'role_name', // We'll add this computed field to each user
+    label: 'Role',
+    sortable: true,
+    searchable: true,
+    formatter: (value, item) => value || 'No Role'
+  },
+  {
+    key: 'active', // Sort by boolean value directly
+    label: 'Status',
+    sortable: true,
+    formatter: (value, item) => item.active ? 'Active' : 'Inactive'
+  },
+  {
+    key: 'last_login',
+    label: 'Last Login',
+    sortable: true,
+    formatter: (value) => formatDate(value)
+  },
+  {
+    key: 'created_at',
+    label: 'Created',
+    sortable: true,
+    formatter: (value) => formatDate(value)
+  },
+  {
+    key: 'actions',
+    label: 'Actions',
+    sortable: false, // Actions column shouldn't be sortable
+    cellClass: 'text-right'
+  }
 ]
 
 // Computed properties
@@ -429,33 +432,103 @@ const canManageUsers = computed(() => {
          authStore.user?.role?.name === 'admin'
 })
 
-// API functions
+// ✅ CONSOLIDATED: Format stats for StatsGrid component (matches Contracts pattern)
+const userStatsFormatted = computed(() => [
+  {
+    title: 'Total Users',
+    value: userStats.value.total,
+    icon: 'users',
+    color: 'blue'
+  },
+  {
+    title: 'Active Users',
+    value: userStats.value.active,
+    icon: 'success',
+    color: 'green'
+  },
+  {
+    title: 'Inactive Users',
+    value: userStats.value.inactive,
+    icon: 'warning',
+    color: 'yellow'
+  },
+  {
+    title: 'Recent (30 days)',
+    value: userStats.value.recent,
+    icon: 'clock',
+    color: 'purple'
+  }
+])
+
+// ✅ CONSOLIDATED: Filtered users for DataTable with enhanced sorting fields
+const filteredUsers = computed(() => {
+  let filtered = users.value.map(user => ({
+    ...user,
+    // Add computed fields for better sorting
+    display_name: userUtils.getDisplayName(user),
+    role_name: user.role?.name || 'No Role',
+    status_text: user.active ? 'Active' : 'Inactive'
+  }))
+
+  // Apply role filter
+  if (roleFilter.value) {
+    filtered = filtered.filter(user => user.role_id === parseInt(roleFilter.value))
+  }
+
+  // Apply status filter
+  if (statusFilter.value) {
+    const isActive = statusFilter.value === 'active'
+    filtered = filtered.filter(user => user.active === isActive)
+  }
+
+  return filtered
+})
+
+// ✅ CONSOLIDATED: Clear filters (search handled by DataTable)
+const clearFilters = () => {
+  roleFilter.value = ''
+  statusFilter.value = ''
+}
+
+// API functions with enhanced error handling
 const loadUsers = async () => {
   loading.value = true
   error.value = ''
 
   try {
-    console.log('🔍 Loading users...')
-    const [usersData, statsData] = await Promise.all([
-      userService.getAll(),
-      userService.getStats().catch(() => null) // Stats might not be available
-    ])
-    
+    // First, load the users
+    const usersData = await userService.getAll()
     users.value = usersData
-    
-    // Use API stats if available, otherwise generate from user data
-    if (statsData) {
+
+    // Then try to get stats from API, but always fallback to generated stats
+    let statsData = null
+    try {
+      statsData = await userService.getStats()
+    } catch (statsError) {
+      console.info('Stats API not available, generating from user data')
+    }
+
+    // Use API stats if available and valid, otherwise generate from user data
+    if (statsData && typeof statsData === 'object' && statsData.total !== undefined) {
       userStats.value = statsData
     } else {
       userStats.value = userUtils.generateStats(users.value)
     }
-    
-    console.log('✅ Users loaded successfully:', users.value.length)
+
   } catch (err) {
-    error.value = userUtils.formatError(err)
-    console.error('❌ Failed to load users:', err)
+    error.value = handleError(err)
   } finally {
     loading.value = false
+  }
+}
+
+const loadRoles = async () => {
+  try {
+    const response = await api.get('/auth/roles')
+    availableRoles.value = response.data || []
+  } catch (err) {
+    console.error('Failed to load roles for filter:', err)
+    availableRoles.value = []
   }
 }
 
@@ -470,22 +543,14 @@ const closeEditModal = () => {
 }
 
 const handleUserSaved = (result) => {
-  console.log('🎉 User saved, refreshing list...')
-
-  // Always refresh the user list when a user is saved
   loadUsers()
-
-  // Only close modals if no password was generated (meaning user can close modal)
   if (!result || !result.password) {
     closeCreateModal()
     closeEditModal()
   }
-  // If password was generated, keep modal open for user to copy password
-  // Modal will close when user clicks "Copy & Close" or manually closes it
 }
 
 const handlePasswordChanged = () => {
-  console.log('🔐 Password changed successfully')
   loadUsers()
   showPasswordModal.value = false
   selectedUser.value = null
@@ -521,16 +586,12 @@ const confirmDelete = async () => {
   deleteLoading.value = true
 
   try {
-    console.log(`🗑️ Permanently deleting user ${selectedUser.value.user_id}`)
     await userService.delete(selectedUser.value.user_id)
-    console.log('✅ User permanently deleted')
-
     await loadUsers()
     showDeleteModal.value = false
     selectedUser.value = null
   } catch (err) {
-    console.error('❌ Failed to permanently delete user:', err)
-    const errorMessage = userUtils.formatError(err)
+    const errorMessage = handleError(err)
     alert('Failed to delete user: ' + errorMessage)
   } finally {
     deleteLoading.value = false
@@ -549,7 +610,7 @@ const confirmStatusChange = async () => {
     selectedUser.value = null
     statusAction.value = ''
   } catch (err) {
-    const errorMessage = userUtils.formatError(err)
+    const errorMessage = handleError(err)
     alert(`Failed to ${statusAction.value} user: ` + errorMessage)
   } finally {
     statusLoading.value = false
@@ -562,7 +623,11 @@ const getActiveSessionsCount = (user) => {
 }
 
 onMounted(async () => {
-  await loadUsers()
+  // Load data in parallel
+  await Promise.allSettled([
+    loadUsers(),
+    loadRoles()
+  ])
 
   // Check if there's a view parameter
   const viewId = route.query.view
@@ -576,7 +641,5 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.table-cell {
-  @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
-}
+/* DataTable handles most styling, minimal custom styles needed */
 </style>

@@ -41,7 +41,7 @@
                 </span>
               </div>
               <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
-                <div 
+                <div
                   :class="getStrengthColorClass(manualPassword, true)"
                   class="h-2 rounded-full transition-all duration-300"
                   :style="{ width: `${(getPasswordStrength(manualPassword) / 4) * 100}%` }"
@@ -71,10 +71,14 @@
               </ul>
             </div>
 
+            <!-- ENHANCED: Button with validation feedback -->
             <button
               type="submit"
               :disabled="loading || !isPasswordValid"
-              class="btn btn-primary w-full"
+              :class="[
+                'btn w-full',
+                isPasswordValid ? 'btn-primary' : 'btn-primary opacity-50 cursor-not-allowed'
+              ]"
             >
               {{ loading ? 'Setting Password...' : 'Set Password' }}
             </button>
@@ -119,9 +123,12 @@
         </div>
       </div>
 
-      <!-- Error Display -->
-      <div v-if="error" class="mt-4 p-3 bg-red-100 border border-red-200 text-red-700 rounded">
-        {{ error }}
+      <!-- ENHANCED: Error Display with validation messages -->
+      <div v-if="error || validationAttempted && !isPasswordValid" class="mt-4 p-3 bg-red-100 border border-red-200 text-red-700 rounded">
+        <div v-if="error">{{ error }}</div>
+        <div v-else-if="validationAttempted && !isPasswordValid">
+          Please enter a valid password that meets all requirements.
+        </div>
       </div>
 
       <!-- Success Display -->
@@ -133,9 +140,7 @@
       <div class="border-t pt-4">
         <div class="bg-yellow-50 border border-yellow-200 rounded p-3">
           <div class="flex">
-            <svg class="h-5 w-5 text-yellow-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-            </svg>
+            <ActionIcon name="warning" size="sm" class="text-yellow-400 mr-2" />
             <div class="text-sm text-yellow-800">
               <strong>Security Notice:</strong> Changing the password will invalidate all active sessions for this user, forcing them to log in again.
             </div>
@@ -153,13 +158,15 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/forms/FormField.vue'
+import ActionIcon from '@/components/icons/ActionIcons.vue'
 import api from '@/services/api'
-import { 
-  validatePassword, 
-  getPasswordStrength, 
+import { useErrorHandler } from '@/utils/errorHandling'
+import {
+  validatePassword,
+  getPasswordStrength,
   getPasswordStrengthInfo,
   generateSecurePassword,
   PASSWORD_POLICY,
@@ -175,20 +182,26 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'updated'])
 
+// Use your existing error handler
+const { handleError } = useErrorHandler('Password Management')
+
 const loading = ref(false)
 const error = ref(null)
 const success = ref(null)
 const manualPassword = ref('')
 const generatedPassword = ref(null)
 const passwordError = ref('')
+const validationAttempted = ref(false) // ENHANCED: Track validation attempts
 
+// ENHANCED: Consolidated password validation
 const isPasswordValid = computed(() => {
+  if (!manualPassword.value) return false
   const validation = validatePassword(manualPassword.value)
   passwordError.value = validation === true ? '' : validation
   return validation === true
 })
 
-// Password requirements computed property
+// Password requirements computed property - CONSOLIDATED from FormModal pattern
 const passwordRequirements = computed(() => {
   const pwd = manualPassword.value
   if (!pwd) {
@@ -200,7 +213,7 @@ const passwordRequirements = computed(() => {
       special: false
     }
   }
-  
+
   return {
     length: pwd.length >= PASSWORD_POLICY.minLength,
     lowercase: /[a-z]/.test(pwd),
@@ -210,11 +223,11 @@ const passwordRequirements = computed(() => {
   }
 })
 
-// Password strength helper functions
+// CONSOLIDATED: Password strength helper functions (same as UserFormModal)
 const getStrengthColorClass = (password, isBar = false) => {
   const strength = getPasswordStrength(password)
   const prefix = isBar ? 'bg-' : 'text-'
-  
+
   const colorMap = {
     0: `${prefix}red-500`,
     1: `${prefix}red-500`,
@@ -222,7 +235,7 @@ const getStrengthColorClass = (password, isBar = false) => {
     3: `${prefix}blue-500`,
     4: `${prefix}green-500`
   }
-  
+
   return colorMap[strength] || `${prefix}gray-400`
 }
 
@@ -253,8 +266,18 @@ const copyToClipboard = async (text) => {
   }
 }
 
+// ENHANCED: Manual reset with validation feedback
 const handleManualReset = async () => {
+  validationAttempted.value = true // Mark that user tried to submit
+  
   if (!isPasswordValid.value) {
+    // Show validation feedback and focus the field
+    setTimeout(() => {
+      const passwordField = document.querySelector('input[type="password"]')
+      if (passwordField) {
+        passwordField.focus()
+      }
+    }, 100)
     return
   }
 
@@ -269,13 +292,13 @@ const handleManualReset = async () => {
     success.value = 'Password has been set successfully'
     manualPassword.value = ''
     generatedPassword.value = null
+    validationAttempted.value = false // Reset validation state
 
     setTimeout(() => {
       emit('updated')
     }, 2000)
   } catch (err) {
-    console.error('Failed to reset password:', err)
-    error.value = err.response?.data?.message || 'Failed to set password'
+    error.value = handleError(err)
   } finally {
     loading.value = false
   }
@@ -288,7 +311,7 @@ const handleGeneratePassword = async () => {
   try {
     // Generate a secure password locally first
     const newPassword = generateSecurePassword(12)
-    
+
     // Send the generated password to the server
     await api.post(`/auth/users/${props.user.user_id}/reset-password`, {
       new_password: newPassword
@@ -297,6 +320,7 @@ const handleGeneratePassword = async () => {
     generatedPassword.value = newPassword
     success.value = 'Random password generated successfully'
     manualPassword.value = ''
+    validationAttempted.value = false // Reset validation state
 
     setTimeout(() => {
       if (!generatedPassword.value) {
@@ -304,10 +328,19 @@ const handleGeneratePassword = async () => {
       }
     }, 2000)
   } catch (err) {
-    console.error('Failed to generate password:', err)
-    error.value = err.response?.data?.message || 'Failed to generate password'
+    error.value = handleError(err)
   } finally {
     loading.value = false
   }
 }
+
+// ENHANCED: Watch for password changes to provide real-time feedback after first attempt
+watch(() => manualPassword.value, () => {
+  if (validationAttempted.value) {
+    // Clear error state when user starts typing after failed validation
+    if (error.value && error.value.includes('valid password')) {
+      error.value = null
+    }
+  }
+})
 </script>

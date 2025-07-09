@@ -31,7 +31,10 @@
           type="submit"
           @click="handleSubmit"
           :disabled="loading || !isFormValid"
-          class="btn btn-primary"
+          :class="[
+            'btn',
+            isFormValid ? 'btn-primary' : 'btn-primary opacity-50 cursor-not-allowed'
+          ]"
         >
           {{ loading ? 'Saving...' : (isEditing ? 'Update' : 'Create') }}
         </button>
@@ -86,6 +89,7 @@ const error = ref('')
 const form = ref({})
 const errors = ref({})
 const fieldInteracted = ref({}) // Track interaction per field
+const validationAttempted = ref(false) // NEW: Track if user has tried to submit
 
 // Enhanced edit mode detection
 const isEditing = computed(() => {
@@ -127,37 +131,24 @@ const isFormValid = computed(() => {
   return !hasErrors && hasRequiredFields
 })
 
-// FIXED: Validation that shows errors immediately when user interacts
+// ENHANCED: Validation that shows errors immediately when user interacts OR after first submit attempt
 const validateField = (key, value, immediate = false) => {
   const rules = props.validationRules[key]
   if (!rules) {
-    console.log(`🔧 FormModal: No validation rules for field "${key}"`)
     return
   }
-
-  console.log(`🔧 FormModal: Validating field "${key}"`, {
-    value,
-    immediate,
-    hasInteracted: fieldInteracted.value[key],
-    rules
-  })
 
   // Clear previous error first
   errors.value[key] = ''
 
   // If there's a custom validator, use it exclusively
   if (rules.validator && typeof rules.validator === 'function') {
-    console.log(`🔧 FormModal: Running custom validator for "${key}"`)
     const result = rules.validator(value, form.value)
-    console.log(`🔧 FormModal: Custom validator result for "${key}":`, result)
-    
+
     if (result !== true) {
-      // Show error if field has been interacted with OR immediate validation (submit)
-      if (immediate || fieldInteracted.value[key]) {
+      // Show error if field has been interacted with OR immediate validation (submit) OR after first validation attempt
+      if (immediate || fieldInteracted.value[key] || validationAttempted.value) {
         errors.value[key] = result
-        console.log(`🔧 FormModal: Setting error for "${key}":`, result)
-      } else {
-        console.log(`🔧 FormModal: Field "${key}" not interacted with yet, skipping error display`)
       }
       return
     }
@@ -170,9 +161,8 @@ const validateField = (key, value, immediate = false) => {
       // Boolean fields are always valid for required check
       return
     } else if (!value || value.toString().trim() === '') {
-      if (immediate || fieldInteracted.value[key]) {
+      if (immediate || fieldInteracted.value[key] || validationAttempted.value) {
         errors.value[key] = `${key.replace(/_/g, ' ')} is required`
-        console.log(`🔧 FormModal: Required validation failed for "${key}"`)
       }
       return
     }
@@ -185,9 +175,8 @@ const validateField = (key, value, immediate = false) => {
   if (rules.email && value) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(value)) {
-      if (immediate || fieldInteracted.value[key]) {
+      if (immediate || fieldInteracted.value[key] || validationAttempted.value) {
         errors.value[key] = 'Please enter a valid email address'
-        console.log(`🔧 FormModal: Email validation failed for "${key}"`)
       }
       return
     }
@@ -195,26 +184,25 @@ const validateField = (key, value, immediate = false) => {
 
   // Min length validation
   if (rules.minLength && value && value.length < rules.minLength) {
-    if (immediate || fieldInteracted.value[key]) {
+    if (immediate || fieldInteracted.value[key] || validationAttempted.value) {
       errors.value[key] = `Must be at least ${rules.minLength} characters`
-      console.log(`🔧 FormModal: Min length validation failed for "${key}"`)
     }
     return
   }
 
   // Max length validation
   if (rules.maxLength && value && value.length > rules.maxLength) {
-    if (immediate || fieldInteracted.value[key]) {
+    if (immediate || fieldInteracted.value[key] || validationAttempted.value) {
       errors.value[key] = `Must be no more than ${rules.maxLength} characters`
-      console.log(`🔧 FormModal: Max length validation failed for "${key}"`)
     }
     return
   }
-
-  console.log(`🔧 FormModal: Validation passed for "${key}"`)
 }
 
 const validateForm = () => {
+  // ENHANCED: Mark that validation has been attempted
+  validationAttempted.value = true
+  
   // Force mark all fields as interacted when validating full form (on submit)
   Object.keys(props.validationRules).forEach(key => {
     fieldInteracted.value[key] = true
@@ -226,14 +214,31 @@ const validateForm = () => {
   return isFormValid.value
 }
 
+// ENHANCED: Submit handler with better feedback
 const handleSubmit = async () => {
+  // Always validate first
   if (!validateForm()) {
-    console.log('❌ Form validation failed:', errors.value)
+    // ENHANCED: Show general error message when validation fails
+    error.value = 'Please fix the validation errors above before submitting.'
+    
+    // Focus on first field with error
+    const firstErrorField = Object.keys(errors.value).find(key => errors.value[key])
+    if (firstErrorField) {
+      // Try to focus the field
+      setTimeout(() => {
+        const element = document.querySelector(`[name="${firstErrorField}"], #${firstErrorField}, [id*="${firstErrorField}"]`)
+        if (element) {
+          element.focus()
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+    }
+    
     return
   }
 
   loading.value = true
-  error.value = ''
+  error.value = '' // Clear any previous error messages
 
   try {
     const result = await props.submitHandler(form.value, isEditing.value)
@@ -264,6 +269,7 @@ const resetForm = () => {
   errors.value = {}
   error.value = ''
   fieldInteracted.value = {} // Reset field interaction tracking
+  validationAttempted.value = false // Reset validation attempt tracking
 }
 
 // FIXED: Proper boolean handling in form initialization
@@ -310,24 +316,18 @@ const setupFieldWatchers = () => {
   Object.keys(props.validationRules).forEach(fieldKey => {
     watch(() => form.value[fieldKey], (newValue, oldValue) => {
       if (!props.validateOnChange) return
-      
+
       // Skip initial setup where oldValue is undefined
       if (oldValue === undefined) {
-        console.log(`🔧 FormModal: Initial setup for field "${fieldKey}", skipping validation`)
         return
       }
-      
-      console.log(`🔧 FormModal: Field "${fieldKey}" changed from "${oldValue}" to "${newValue}"`)
-      
+
       // Mark field as interacted immediately
       fieldInteracted.value[fieldKey] = true
-      
+
       // Validate immediately
       if (props.validationRules[fieldKey]) {
-        console.log(`🔧 FormModal: Validating field "${fieldKey}" with value:`, newValue)
         validateField(fieldKey, newValue, false)
-      } else {
-        console.log(`🔧 FormModal: No validation rules found for field "${fieldKey}"`)
       }
     }, { immediate: false })
   })
@@ -337,6 +337,7 @@ const setupFieldWatchers = () => {
 watch([() => props.open, () => props.initialData], () => {
   if (props.open) {
     fieldInteracted.value = {} // Reset field-level interaction tracking
+    validationAttempted.value = false // Reset validation attempt tracking
     initializeForm()
     // Setup field watchers after form is initialized
     setupFieldWatchers()

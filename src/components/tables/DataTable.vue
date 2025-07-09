@@ -398,16 +398,40 @@ const filteredItems = computed(() => {
     }
   })
 
-  // Apply sorting
+  // Apply sorting - ENHANCED for better nested value handling
   if (sortColumn.value && props.sortable) {
     filtered.sort((a, b) => {
       const aValue = getNestedValue(a, sortColumn.value)
       const bValue = getNestedValue(b, sortColumn.value)
-      
+
+      // Handle null/undefined values
+      if (aValue === null || aValue === undefined) return 1
+      if (bValue === null || bValue === undefined) return -1
+
+      // Handle different data types
       let comparison = 0
-      if (aValue < bValue) comparison = -1
-      if (aValue > bValue) comparison = 1
       
+      // For dates, convert to timestamp for comparison
+      if (sortColumn.value.includes('_at') || sortColumn.value.includes('login')) {
+        const aDate = new Date(aValue).getTime()
+        const bDate = new Date(bValue).getTime()
+        comparison = aDate - bDate
+      }
+      // For booleans (like active status)
+      else if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
+        comparison = aValue === bValue ? 0 : aValue ? 1 : -1
+      }
+      // For numbers
+      else if (!isNaN(aValue) && !isNaN(bValue)) {
+        comparison = Number(aValue) - Number(bValue)
+      }
+      // For strings (case-insensitive)
+      else {
+        const aStr = aValue.toString().toLowerCase()
+        const bStr = bValue.toString().toLowerCase()
+        comparison = aStr.localeCompare(bStr)
+      }
+
       return sortDirection.value === 'desc' ? -comparison : comparison
     })
   }
@@ -452,7 +476,18 @@ const visiblePages = computed(() => {
 
 // Methods
 const getNestedValue = (obj, path) => {
-  return path.split('.').reduce((current, key) => current?.[key], obj)
+  if (!obj || !path) return null
+  
+  // Handle simple paths
+  if (!path.includes('.')) {
+    return obj[path]
+  }
+  
+  // Handle nested paths like 'role.name'
+  return path.split('.').reduce((current, key) => {
+    if (current === null || current === undefined) return null
+    return current[key]
+  }, obj)
 }
 
 const getRowKey = (item, index) => {

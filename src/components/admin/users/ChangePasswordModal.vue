@@ -38,7 +38,7 @@
           </span>
         </div>
         <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
-          <div 
+          <div
             :class="getStrengthColorClass(form.new_password, true)"
             class="h-2 rounded-full transition-all duration-300"
             :style="{ width: `${(getPasswordStrength(form.new_password) / 4) * 100}%` }"
@@ -56,11 +56,6 @@
         autocomplete="new-password"
         required
       />
-
-      <!-- Password Match Validation -->
-      <div v-if="passwordMismatch" class="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
-        ⚠️ Passwords do not match
-      </div>
 
       <!-- Password Requirements -->
       <div class="text-xs text-gray-600 bg-gray-50 p-3 rounded-md">
@@ -85,9 +80,12 @@
       </div>
     </div>
 
-    <!-- Error Display -->
-    <div v-if="error" class="mt-4 p-3 bg-red-100 border border-red-200 text-red-700 rounded">
-      {{ error }}
+    <!-- ENHANCED: Error Display with validation feedback -->
+    <div v-if="error || (validationAttempted && !isFormValid)" class="mt-4 p-3 bg-red-100 border border-red-200 text-red-700 rounded">
+      <div v-if="error">{{ error }}</div>
+      <div v-else-if="validationAttempted && !isFormValid">
+        Please fix the validation errors above before submitting.
+      </div>
     </div>
 
     <!-- Success Display -->
@@ -98,9 +96,7 @@
     <!-- Security Notice -->
     <div class="mt-4 bg-blue-50 border border-blue-200 rounded p-3">
       <div class="flex">
-        <svg class="h-5 w-5 text-blue-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-        </svg>
+        <ActionIcon name="info" size="sm" class="text-blue-400 mr-2" />
         <div class="text-sm text-blue-800">
           Changing your password will log you out of all devices and you'll need to log in again.
         </div>
@@ -112,11 +108,15 @@
         <button type="button" @click="$emit('close')" class="btn btn-outline">
           Cancel
         </button>
+        <!-- ENHANCED: Button with validation feedback -->
         <button
           type="button"
           @click="handleSubmit"
           :disabled="loading || !isFormValid"
-          class="btn btn-primary"
+          :class="[
+            'btn',
+            isFormValid ? 'btn-primary' : 'btn-primary opacity-50 cursor-not-allowed'
+          ]"
         >
           {{ loading ? 'Changing Password...' : 'Change Password' }}
         </button>
@@ -129,10 +129,12 @@
 import { ref, computed, watch } from 'vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/forms/FormField.vue'
+import ActionIcon from '@/components/icons/ActionIcons.vue'
 import api from '@/services/api'
-import { 
-  validatePassword, 
-  getPasswordStrength, 
+import { useErrorHandler } from '@/utils/errorHandling'
+import {
+  validatePassword,
+  getPasswordStrength,
   getPasswordStrengthInfo,
   PASSWORD_POLICY,
   hasSpecialCharacters
@@ -140,10 +142,14 @@ import {
 
 const emit = defineEmits(['close', 'updated'])
 
+// Use your existing error handler
+const { handleError } = useErrorHandler('Password Change')
+
 const loading = ref(false)
 const error = ref(null)
 const success = ref(null)
 const errors = ref({})
+const validationAttempted = ref(false) // ENHANCED: Track validation attempts
 
 const form = ref({
   current_password: '',
@@ -151,10 +157,11 @@ const form = ref({
   confirm_password: ''
 })
 
+// ENHANCED: Consolidated form validation (same pattern as FormModal)
 const isFormValid = computed(() => {
   // Check if there are any non-empty errors
   const hasRealErrors = Object.keys(errors.value).some(key => errors.value[key] && errors.value[key].trim() !== '')
-  
+
   return form.value.current_password &&
          form.value.new_password &&
          form.value.confirm_password &&
@@ -163,7 +170,7 @@ const isFormValid = computed(() => {
          !hasRealErrors
 })
 
-// Password requirements computed property
+// CONSOLIDATED: Password requirements (same as other modals)
 const passwordRequirements = computed(() => {
   const pwd = form.value.new_password
   if (!pwd) {
@@ -175,7 +182,7 @@ const passwordRequirements = computed(() => {
       special: false
     }
   }
-  
+
   return {
     length: pwd.length >= PASSWORD_POLICY.minLength,
     lowercase: /[a-z]/.test(pwd),
@@ -187,16 +194,16 @@ const passwordRequirements = computed(() => {
 
 // Password mismatch computed property
 const passwordMismatch = computed(() => {
-  return form.value.new_password && 
-         form.value.confirm_password && 
+  return form.value.new_password &&
+         form.value.confirm_password &&
          form.value.new_password !== form.value.confirm_password
 })
 
-// Password strength helper functions
+// CONSOLIDATED: Password strength helper functions (same as other modals)
 const getStrengthColorClass = (password, isBar = false) => {
   const strength = getPasswordStrength(password)
   const prefix = isBar ? 'bg-' : 'text-'
-  
+
   const colorMap = {
     0: `${prefix}red-500`,
     1: `${prefix}red-500`,
@@ -204,7 +211,7 @@ const getStrengthColorClass = (password, isBar = false) => {
     3: `${prefix}blue-500`,
     4: `${prefix}green-500`
   }
-  
+
   return colorMap[strength] || `${prefix}gray-400`
 }
 
@@ -214,8 +221,10 @@ const clearMessages = () => {
   errors.value = {}
 }
 
+// ENHANCED: Validation with immediate feedback after first attempt
 const validateForm = () => {
   errors.value = {}
+  validationAttempted.value = true
 
   // Validate current password
   if (!form.value.current_password) {
@@ -238,10 +247,22 @@ const validateForm = () => {
   return Object.keys(errors.value).length === 0
 }
 
+// ENHANCED: Submit with validation feedback
 const handleSubmit = async () => {
   clearMessages()
 
   if (!validateForm()) {
+    // Focus on first field with error
+    const firstErrorField = Object.keys(errors.value)[0]
+    if (firstErrorField) {
+      setTimeout(() => {
+        const element = document.querySelector(`input[name="${firstErrorField}"], input[type="password"]`)
+        if (element) {
+          element.focus()
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+    }
     return
   }
 
@@ -266,6 +287,7 @@ const handleSubmit = async () => {
       new_password: '',
       confirm_password: ''
     }
+    validationAttempted.value = false // Reset validation state
 
     // Close modal and refresh after a delay
     setTimeout(() => {
@@ -274,44 +296,43 @@ const handleSubmit = async () => {
       window.location.reload()
     }, 2000)
   } catch (err) {
-    console.error('Failed to change password:', err)
+    // Special handling for password change errors
     if (err.response?.status === 400 && err.response?.data?.message?.includes('password')) {
       error.value = 'Current password is incorrect'
     } else {
-      error.value = err.response?.data?.message || 'Failed to change password'
+      error.value = handleError(err)
     }
   } finally {
     loading.value = false
   }
 }
 
-// Watch for form changes to provide real-time validation feedback
+// ENHANCED: Watch for form changes to provide real-time validation feedback after first attempt
 watch(() => form.value.confirm_password, (newValue) => {
+  if (!validationAttempted.value) return // Only validate after first attempt
+  
   if (newValue && form.value.new_password) {
     if (newValue !== form.value.new_password) {
       errors.value.confirm_password = 'Passwords do not match'
     } else {
-      // Clear the error when passwords match
       delete errors.value.confirm_password
     }
   } else if (!newValue) {
-    // Clear error when field is empty
     delete errors.value.confirm_password
   }
 })
 
 watch(() => form.value.new_password, (newValue) => {
-  // Validate new password and log for debugging
+  if (!validationAttempted.value) return // Only validate after first attempt
+  
   if (newValue) {
     const validation = validatePassword(newValue)
-    
     if (validation !== true) {
       errors.value.new_password = validation
     } else {
-      // Clear the error when password is valid
       delete errors.value.new_password
     }
-    
+
     // Check confirmation match if confirm password exists
     if (form.value.confirm_password) {
       if (newValue === form.value.confirm_password) {
@@ -321,13 +342,13 @@ watch(() => form.value.new_password, (newValue) => {
       }
     }
   } else {
-    // Clear error when field is empty
     delete errors.value.new_password
   }
 })
 
-// Also add a watcher for current_password to clear its error
 watch(() => form.value.current_password, (newValue) => {
+  if (!validationAttempted.value) return // Only validate after first attempt
+  
   if (newValue) {
     delete errors.value.current_password
   }
