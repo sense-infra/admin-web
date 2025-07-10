@@ -85,8 +85,6 @@
       @refresh="loadUsers"
       @row-click="viewUser"
     >
-    >
-    >
       <!-- Custom cell renderers -->
       <template #cell-display_name="{ item }">
         <div class="flex items-center">
@@ -233,7 +231,7 @@
                 :key="resource"
                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
               >
-                {{ resource }}: {{ Array.isArray(actions) ? actions.join(', ') : actions }}
+                {{ getResourceLabel(resource) }}: {{ Array.isArray(actions) ? actions.join(', ') : actions }}
               </span>
             </div>
           </div>
@@ -332,9 +330,10 @@ import { useAuthStore } from '@/stores/auth'
 import { userService, userUtils } from '@/services/users'
 import { formatDate } from '@/utils/formatters'
 import { useErrorHandler } from '@/utils/errorHandling'
+import { usePermissions } from '@/composables/usePermissions'
 import api from '@/services/api'
 
-// ✅ CONSOLIDATED: Import reusable components (removed SearchFilterBar since DataTable handles search)
+// ✅ CONSOLIDATED: Import reusable components
 import ActionIcon from '@/components/icons/ActionIcons.vue'
 import StatsGrid from '@/components/ui/StatsGrid.vue'
 import DataTable from '@/components/tables/DataTable.vue'
@@ -347,8 +346,9 @@ import UserActionButtons from '@/components/admin/users/UserActionButtons.vue'
 const authStore = useAuthStore()
 const route = useRoute()
 
-// Use your existing error handler
+// ✅ CONSOLIDATED: Use centralized error handling and permissions
 const { handleError } = useErrorHandler('User Management')
+const { getResource } = usePermissions()
 
 // Reactive data
 const loading = ref(false)
@@ -388,7 +388,7 @@ const userColumns = [
   },
   {
     key: 'email',
-    label: 'Email & ID', 
+    label: 'Email & ID',
     sortable: true,
     searchable: true
   },
@@ -425,7 +425,7 @@ const userColumns = [
   }
 ]
 
-// Computed properties
+// ✅ CONSOLIDATED: Permission checks using centralized permissions
 const canManageUsers = computed(() => {
   return authStore.hasPermission('users', 'create') ||
          authStore.hasPermission('users', 'update') ||
@@ -488,6 +488,12 @@ const filteredUsers = computed(() => {
 const clearFilters = () => {
   roleFilter.value = ''
   statusFilter.value = ''
+}
+
+// ✅ CONSOLIDATED: Use centralized permissions for resource labels
+const getResourceLabel = (resourceName) => {
+  const resource = getResource(resourceName)
+  return resource?.label || resourceName
 }
 
 // API functions with enhanced error handling

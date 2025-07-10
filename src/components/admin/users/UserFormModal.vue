@@ -10,8 +10,7 @@
     @close="$emit('close')"
     @saved="handleSaved"
   >
-    <!-- FIXED: Added isFormValid to the slot props destructuring -->
-    <template #default="{ form, errors, isEditing, isFormValid }">
+    <template #default="{ form, errors, isEditing, isFormValid, updateField }">
       <div class="space-y-4">
         <!-- Server Error Display -->
         <div v-if="serverError" class="p-3 bg-red-50 border border-red-200 rounded-md">
@@ -173,8 +172,6 @@
             </div>
           </div>
         </div>
-
-
       </div>
     </template>
   </FormModal>
@@ -212,11 +209,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'saved'])
-
-// Computed property for development mode
-const isDevelopment = computed(() => {
-  return import.meta.env.MODE === 'development'
-})
 
 // Error handling
 const { handleError } = useErrorHandler('User Form')

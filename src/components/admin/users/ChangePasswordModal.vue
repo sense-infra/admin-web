@@ -80,7 +80,7 @@
       </div>
     </div>
 
-    <!-- ENHANCED: Error Display with validation feedback -->
+    <!-- ✅ CONSOLIDATED: Error Display with validation feedback -->
     <div v-if="error || (validationAttempted && !isFormValid)" class="mt-4 p-3 bg-red-100 border border-red-200 text-red-700 rounded">
       <div v-if="error">{{ error }}</div>
       <div v-else-if="validationAttempted && !isFormValid">
@@ -108,7 +108,7 @@
         <button type="button" @click="$emit('close')" class="btn btn-outline">
           Cancel
         </button>
-        <!-- ENHANCED: Button with validation feedback -->
+        <!-- ✅ CONSOLIDATED: Button with validation feedback -->
         <button
           type="button"
           @click="handleSubmit"
@@ -142,14 +142,14 @@ import {
 
 const emit = defineEmits(['close', 'updated'])
 
-// Use your existing error handler
+// ✅ CONSOLIDATED: Use centralized error handler
 const { handleError } = useErrorHandler('Password Change')
 
 const loading = ref(false)
 const error = ref(null)
 const success = ref(null)
 const errors = ref({})
-const validationAttempted = ref(false) // ENHANCED: Track validation attempts
+const validationAttempted = ref(false) // ✅ CONSOLIDATED: Track validation attempts
 
 const form = ref({
   current_password: '',
@@ -157,7 +157,7 @@ const form = ref({
   confirm_password: ''
 })
 
-// ENHANCED: Consolidated form validation (same pattern as FormModal)
+// ✅ CONSOLIDATED: Consolidated form validation (same pattern as FormModal)
 const isFormValid = computed(() => {
   // Check if there are any non-empty errors
   const hasRealErrors = Object.keys(errors.value).some(key => errors.value[key] && errors.value[key].trim() !== '')
@@ -170,7 +170,7 @@ const isFormValid = computed(() => {
          !hasRealErrors
 })
 
-// CONSOLIDATED: Password requirements (same as other modals)
+// ✅ CONSOLIDATED: Password requirements (same as other modals)
 const passwordRequirements = computed(() => {
   const pwd = form.value.new_password
   if (!pwd) {
@@ -199,7 +199,7 @@ const passwordMismatch = computed(() => {
          form.value.new_password !== form.value.confirm_password
 })
 
-// CONSOLIDATED: Password strength helper functions (same as other modals)
+// ✅ CONSOLIDATED: Password strength helper functions (same as other modals)
 const getStrengthColorClass = (password, isBar = false) => {
   const strength = getPasswordStrength(password)
   const prefix = isBar ? 'bg-' : 'text-'
@@ -221,7 +221,7 @@ const clearMessages = () => {
   errors.value = {}
 }
 
-// ENHANCED: Validation with immediate feedback after first attempt
+// ✅ CONSOLIDATED: Validation with immediate feedback after first attempt
 const validateForm = () => {
   errors.value = {}
   validationAttempted.value = true
@@ -247,7 +247,7 @@ const validateForm = () => {
   return Object.keys(errors.value).length === 0
 }
 
-// ENHANCED: Submit with validation feedback
+// ✅ CONSOLIDATED: Submit with validation feedback
 const handleSubmit = async () => {
   clearMessages()
 
@@ -307,10 +307,10 @@ const handleSubmit = async () => {
   }
 }
 
-// ENHANCED: Watch for form changes to provide real-time validation feedback after first attempt
+// ✅ CONSOLIDATED: Watch for form changes to provide real-time validation feedback after first attempt
 watch(() => form.value.confirm_password, (newValue) => {
   if (!validationAttempted.value) return // Only validate after first attempt
-  
+
   if (newValue && form.value.new_password) {
     if (newValue !== form.value.new_password) {
       errors.value.confirm_password = 'Passwords do not match'
@@ -324,7 +324,7 @@ watch(() => form.value.confirm_password, (newValue) => {
 
 watch(() => form.value.new_password, (newValue) => {
   if (!validationAttempted.value) return // Only validate after first attempt
-  
+
   if (newValue) {
     const validation = validatePassword(newValue)
     if (validation !== true) {
@@ -348,7 +348,7 @@ watch(() => form.value.new_password, (newValue) => {
 
 watch(() => form.value.current_password, (newValue) => {
   if (!validationAttempted.value) return // Only validate after first attempt
-  
+
   if (newValue) {
     delete errors.value.current_password
   }
