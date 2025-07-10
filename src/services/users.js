@@ -60,7 +60,7 @@ export const userService = {
       const response = await api.post('/auth/users', cleanedData)
       return response.data
     } catch (error) {
-      logError(error, 'userService.create', { 
+      logError(error, 'userService.create', {
         userData: { ...userData, password: userData.password ? '[REDACTED]' : undefined }
       })
       throw new Error(errorHandlers.create(error, {
@@ -158,7 +158,7 @@ export const userService = {
         console.info('User stats endpoint not available, will generate stats from user data')
         return null // Return null to indicate fallback should be used
       }
-    
+
       // Log other errors normally
       logError(error, 'userService.getStats')
       return null // Still return null to allow fallback
@@ -167,7 +167,7 @@ export const userService = {
 }
 
 /**
- * User utility functions following the consolidated pattern
+ * User utility functions following the consolidated pattern from roles.js
  */
 export const userUtils = {
   /**
@@ -258,7 +258,7 @@ export const userUtils = {
   },
 
   /**
-   * Format error message for user operations (now uses YOUR centralized error handling)
+   * Format error message for user operations (now uses centralized error handling)
    * @param {Error} error - Error object
    * @returns {string} Formatted error message
    */

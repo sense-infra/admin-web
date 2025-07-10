@@ -1,227 +1,355 @@
+// src/services/roles.js
+// Enhanced role management service following the consolidated service pattern
+
 import api from './api'
-import { usePermissions } from '@/composables/usePermissions'
+import { formatDate } from '@/utils/formatters'
+import { errorHandlers, logError, createRetryHandler } from '@/utils/errorHandling'
 
+/**
+ * Role service following the standard service pattern with enhanced functionality
+ * Includes user reassignment capabilities for role deletion
+ */
 export const rolesService = {
-  // Get all roles
-  async getAll() {
-    try {
-      const response = await api.get('/auth/roles')
-      console.log('📋 Roles fetched:', response.data)
+  /**
+   * Get all roles with optional filtering
+   * @param {Object} params - Query parameters for filtering
+   * @returns {Promise<Array>} Array of role objects
+   */
+  async getAll(params = {}) {
+    const operation = async () => {
+      const response = await api.get('/auth/roles', { params })
+      return Array.isArray(response.data) ? response.data : []
+    }
 
-      // Handle different response formats
-      if (Array.isArray(response.data)) {
-        return response.data
-      } else if (response.data && response.data.roles) {
-        return response.data.roles
-      } else if (response.data && response.data.data) {
-        return response.data.data
-      } else {
-        return []
-      }
+    try {
+      return await createRetryHandler(operation, 2)()
     } catch (error) {
-      console.error('❌ Failed to fetch roles:', error)
-      throw error
+      logError(error, 'rolesService.getAll', { params })
+      throw new Error(errorHandlers.fetch(error, {
+        fallbackMessage: 'Failed to load roles'
+      }))
     }
   },
 
-  // Get role by ID
+  /**
+   * Get a single role by ID
+   * @param {number} roleId - Role ID
+   * @returns {Promise<Object>} Role object
+   */
   async getById(roleId) {
     try {
       const response = await api.get(`/auth/roles/${roleId}`)
-      console.log('📋 Role fetched:', response.data)
       return response.data
     } catch (error) {
-      console.error('❌ Failed to fetch role:', error)
-      throw error
+      logError(error, 'rolesService.getById', { roleId })
+      throw new Error(errorHandlers.fetch(error, {
+        fallbackMessage: `Failed to load role ${roleId}`
+      }))
     }
   },
 
-  // Get role usage information
+  /**
+   * Create a new role
+   * @param {Object} roleData - Role data
+   * @returns {Promise<Object>} Created role object
+   */
+  async create(roleData) {
+    try {
+      // Clean and validate data
+      const cleanedData = roleUtils.cleanRoleData(roleData)
+
+      const response = await api.post('/auth/roles', cleanedData)
+      return response.data
+    } catch (error) {
+      logError(error, 'rolesService.create', { roleData })
+      throw new Error(errorHandlers.create(error, {
+        fallbackMessage: 'Failed to create role'
+      }))
+    }
+  },
+
+  /**
+   * Update an existing role
+   * @param {number} roleId - Role ID
+   * @param {Object} roleData - Updated role data
+   * @returns {Promise<Object>} Updated role object
+   */
+  async update(roleId, roleData) {
+    try {
+      // Clean and validate data
+      const cleanedData = roleUtils.cleanRoleData(roleData)
+
+      const response = await api.put(`/auth/roles/${roleId}`, cleanedData)
+      return response.data
+    } catch (error) {
+      logError(error, 'rolesService.update', { roleId, roleData })
+      throw new Error(errorHandlers.update(error, {
+        fallbackMessage: `Failed to update role ${roleId}`
+      }))
+    }
+  },
+
+  /**
+   * Delete a role permanently
+   * @param {number} roleId - Role ID
+   * @returns {Promise<Object>} Deletion result
+   */
+  async delete(roleId) {
+    try {
+      const response = await api.delete(`/auth/roles/${roleId}`)
+      return response.data
+    } catch (error) {
+      logError(error, 'rolesService.delete', { roleId })
+      throw new Error(errorHandlers.delete(error, {
+        fallbackMessage: `Failed to delete role ${roleId}`
+      }))
+    }
+  },
+
+  /**
+   * Toggle role active status
+   * @param {number} roleId - Role ID
+   * @param {boolean} active - New active status
+   * @returns {Promise<Object>} Updated role object
+   */
+  async toggleStatus(roleId, active) {
+    try {
+      const response = await api.put(`/auth/roles/${roleId}`, { active })
+      return response.data
+    } catch (error) {
+      logError(error, 'rolesService.toggleStatus', { roleId, active })
+      const action = active ? 'activate' : 'deactivate'
+      throw new Error(errorHandlers.update(error, {
+        fallbackMessage: `Failed to ${action} role ${roleId}`
+      }))
+    }
+  },
+
+  /**
+   * Get role usage information including assigned users
+   * @param {number} roleId - Role ID
+   * @returns {Promise<Object>} Role usage information
+   */
   async getUsage(roleId) {
     try {
       const response = await api.get(`/auth/roles/${roleId}/usage`)
-      console.log('📊 Role usage fetched:', response.data)
       return response.data
     } catch (error) {
-      console.error('❌ Failed to fetch role usage:', error)
-      throw error
+      logError(error, 'rolesService.getUsage', { roleId })
+      throw new Error(errorHandlers.fetch(error, {
+        fallbackMessage: `Failed to fetch role usage for role ${roleId}`
+      }))
     }
   },
 
-  // Create new role
-  async create(roleData) {
-    try {
-      console.log('➕ Creating role:', roleData)
-      const response = await api.post('/auth/roles', roleData)
-      console.log('✅ Role created:', response.data)
-      return response.data
-    } catch (error) {
-      console.error('❌ Failed to create role:', error)
-      throw error
-    }
-  },
-
-  // Update role
-  async update(roleId, roleData) {
-    try {
-      console.log('✏️ Updating role:', roleId, roleData)
-      const response = await api.put(`/auth/roles/${roleId}`, roleData)
-      console.log('✅ Role updated:', response.data)
-      return response.data
-    } catch (error) {
-      console.error('❌ Failed to update role:', error)
-      throw error
-    }
-  },
-
-  // Delete role (with enhanced error handling)
-  async delete(roleId) {
-    try {
-      console.log('🗑️ Deleting role:', roleId)
-      const response = await api.delete(`/auth/roles/${roleId}`)
-      console.log('✅ Role deleted')
-      return response.data
-    } catch (error) {
-      console.error('❌ Failed to delete role:', error)
-
-      // Enhanced error handling for role deletion
-      if (error.response?.status === 409) {
-        const message = error.response.data?.message || 'Role cannot be deleted'
-        if (message.includes('assigned to') || message.includes('users')) {
-          // Enhance the error with more context
-          throw new Error(`${message}. Please reassign users to another role before deletion.`)
-        }
-        if (message.includes('system role')) {
-          throw new Error('System roles cannot be deleted as they are essential for platform operation.')
-        }
-      }
-
-      throw error
-    }
-  },
-
-  // Deactivate role
-  async deactivate(roleId) {
-    try {
-      console.log('⏸️ Deactivating role:', roleId)
-      const response = await api.post(`/auth/roles/${roleId}/deactivate`)
-      console.log('✅ Role deactivated')
-      return response.data
-    } catch (error) {
-      console.error('❌ Failed to deactivate role:', error)
-      throw error
-    }
-  },
-
-  // Reassign users from one role to another
-  async reassignUsers(fromRoleId, toRoleId) {
-    try {
-      console.log('🔄 Reassigning users from role', fromRoleId, 'to role', toRoleId)
-      const response = await api.post(`/auth/roles/${fromRoleId}/reassign`, {
-        new_role_id: toRoleId
-      })
-      console.log('✅ Users reassigned')
-      return response.data
-    } catch (error) {
-      console.error('❌ Failed to reassign users:', error)
-      throw error
-    }
-  },
-
-  // Get users assigned to a role
+  /**
+   * Get users assigned to a specific role
+   * @param {number} roleId - Role ID
+   * @returns {Promise<Array>} Array of user objects
+   */
   async getRoleUsers(roleId) {
     try {
       const response = await api.get(`/auth/roles/${roleId}/users`)
-      console.log('👥 Role users fetched:', response.data)
+      return Array.isArray(response.data) ? response.data : []
+    } catch (error) {
+      logError(error, 'rolesService.getRoleUsers', { roleId })
+      throw new Error(errorHandlers.fetch(error, {
+        fallbackMessage: `Failed to fetch users for role ${roleId}`
+      }))
+    }
+  },
+
+  /**
+   * Reassign users from one role to another
+   * @param {number} fromRoleId - Source role ID
+   * @param {number} toRoleId - Target role ID
+   * @returns {Promise<Object>} Reassignment result
+   */
+  async reassignUsers(fromRoleId, toRoleId) {
+    try {
+      const response = await api.post(`/auth/roles/${fromRoleId}/reassign`, {
+        new_role_id: toRoleId
+      })
       return response.data
     } catch (error) {
-      console.error('❌ Failed to fetch role users:', error)
-      throw error
+      logError(error, 'rolesService.reassignUsers', { fromRoleId, toRoleId })
+      throw new Error(errorHandlers.update(error, {
+        fallbackMessage: 'Failed to reassign users to new role'
+      }))
+    }
+  },
+
+  /**
+   * Get role statistics - Enhanced error handling for 404
+   * @returns {Promise<Object>} Role statistics
+   */
+  async getStats() {
+    try {
+      const response = await api.get('/auth/roles/stats')
+      return response.data
+    } catch (error) {
+      // Only log 404 as info, not error since it's expected if endpoint doesn't exist
+      if (error.response?.status === 404) {
+        console.info('Role stats endpoint not available, will generate stats from role data')
+        return null // Return null to indicate fallback should be used
+      }
+
+      // Log other errors normally
+      logError(error, 'rolesService.getStats')
+      return null // Still return null to allow fallback
     }
   }
 }
 
-// Utility functions for role management using centralized permissions
+/**
+ * Enhanced role utility functions following the consolidated pattern
+ */
 export const roleUtils = {
-  // Format role name for display
-  formatRoleName(role) {
-    if (!role || !role.name) return 'Unknown Role'
-    return role.name.charAt(0).toUpperCase() + role.name.slice(1)
+  /**
+   * Clean and format role data for API submission
+   * @param {Object} roleData - Raw role data from form
+   * @returns {Object} Cleaned role data
+   */
+  cleanRoleData(roleData) {
+    const cleaned = {
+      name: roleData.name?.trim(),
+      description: roleData.description?.trim() || null,
+      permissions: roleData.permissions || {},
+      active: Boolean(roleData.active)
+    }
+
+    // Ensure permissions is an object
+    if (typeof cleaned.permissions === 'string') {
+      try {
+        cleaned.permissions = JSON.parse(cleaned.permissions)
+      } catch (e) {
+        console.warn('Invalid permissions JSON string, using empty object')
+        cleaned.permissions = {}
+      }
+    }
+
+    return cleaned
   },
 
-  // Get role badge color class
-  getRoleBadgeClass(roleName) {
-    const baseClasses = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium'
-    switch (roleName?.toLowerCase()) {
-      case 'admin':
-        return `${baseClasses} bg-red-100 text-red-800`
-      case 'manager':
-        return `${baseClasses} bg-blue-100 text-blue-800`
-      case 'operator':
-        return `${baseClasses} bg-yellow-100 text-yellow-800`
-      case 'viewer':
-        return `${baseClasses} bg-green-100 text-green-800`
-      default:
-        return `${baseClasses} bg-gray-100 text-gray-800`
+  /**
+   * Generate role stats from roles array (fallback if API doesn't provide stats)
+   * @param {Array} roles - Array of roles
+   * @returns {Object} Role statistics
+   */
+  generateStats(roles) {
+    if (!Array.isArray(roles)) {
+      return { total: 0, active: 0, inactive: 0, system: 0 }
+    }
+
+    return {
+      total: roles.length,
+      active: roles.filter(role => role.active).length,
+      inactive: roles.filter(role => !role.active).length,
+      system: roles.filter(role => this.isSystemRole(role)).length
     }
   },
 
-  // Check if role is system role (cannot be deleted)
+  /**
+   * Check if role is a protected system role
+   * @param {Object} role - Role object
+   * @returns {boolean} True if system role
+   */
   isSystemRole(role) {
-    return ['admin', 'viewer'].includes(role?.name?.toLowerCase())
+    // System roles are typically identified by name or a system flag
+    const systemRoleNames = ['admin', 'viewer', 'system']
+    return systemRoleNames.includes(role?.name?.toLowerCase()) || 
+           role?.is_system === true ||
+           role?.system === true
   },
 
-  // Count permissions for a role using centralized permissions
+  /**
+   * Get status badge CSS class
+   * @param {boolean} isActive - Role active status
+   * @returns {string} CSS class
+   */
+  getStatusBadgeClass(isActive) {
+    return isActive
+      ? 'bg-green-100 text-green-800'
+      : 'bg-yellow-100 text-yellow-800'
+  },
+
+  /**
+   * Get resource label for display (using centralized permissions if available)
+   * @param {string} resourceName - Resource name
+   * @returns {string} Display label
+   */
+  getResourceLabel(resourceName) {
+    // This mapping should ideally come from your centralized permissions
+    const labels = {
+      users: 'Users',
+      roles: 'Roles',
+      customers: 'Customers',
+      contracts: 'Contracts',
+      service_tiers: 'Service Tiers',
+      controllers: 'Controllers',
+      cameras: 'Cameras',
+      nvrs: 'NVRs',
+      events: 'Events',
+      api_keys: 'API Keys',
+      rf_monitoring: 'RF Monitoring',
+      system_config: 'System Config',
+      logs: 'Logs',
+      diagnostics: 'Diagnostics'
+    }
+    return labels[resourceName] || resourceName
+  },
+
+  /**
+   * Count total permissions for a role
+   * @param {Object} role - Role object
+   * @returns {number} Total permission count
+   */
   countPermissions(role) {
-    if (!role?.permissions) return 0
-    return Object.values(role.permissions).reduce((total, actions) => total + actions.length, 0)
+    if (!role?.permissions || typeof role.permissions !== 'object') return 0
+    
+    return Object.values(role.permissions).reduce((total, actions) => {
+      if (Array.isArray(actions)) {
+        return total + actions.length
+      }
+      return total + 1 // Single action as string
+    }, 0)
   },
 
-  // Get permission summary for display using centralized permissions
-  getPermissionSummary(role) {
-    if (!role?.permissions) return 'No permissions'
-
-    const resources = Object.keys(role.permissions)
-    const totalActions = this.countPermissions(role)
-
-    if (resources.length === 0) return 'No permissions'
-    if (resources.length === 1) return `${resources[0]} (${totalActions} actions)`
-
-    return `${resources.length} resources (${totalActions} actions)`
+  /**
+   * Format error message for role operations
+   * @param {Error} error - Error object
+   * @returns {string} Formatted error message
+   */
+  formatError(error) {
+    return errorHandlers.role(error)
   },
 
-  // Validate role data using centralized permissions
-  validateRole(roleData) {
+  /**
+   * Validate role data before submission
+   * @param {Object} roleData - Role data to validate
+   * @param {boolean} isEditing - Whether this is an edit operation
+   * @returns {Object} Validation result with isValid and errors
+   */
+  validateRoleData(roleData, isEditing = false) {
     const errors = []
 
+    // Name validation
     if (!roleData.name || roleData.name.trim() === '') {
       errors.push('Role name is required')
-    }
-
-    if (roleData.name && roleData.name.length < 2) {
+    } else if (roleData.name.length < 2) {
       errors.push('Role name must be at least 2 characters')
-    }
-
-    if (roleData.name && roleData.name.length > 50) {
+    } else if (roleData.name.length > 50) {
       errors.push('Role name must be less than 50 characters')
     }
 
-    if (!roleData.permissions || Object.keys(roleData.permissions).length === 0) {
-      errors.push('At least one permission is required')
+    // Description validation
+    if (roleData.description && roleData.description.length > 500) {
+      errors.push('Description must be less than 500 characters')
     }
 
-    // Use centralized permissions to validate against available resources
-    if (roleData.permissions && typeof window !== 'undefined') {
-      try {
-        const { validatePermissions } = usePermissions()
-        const validation = validatePermissions(roleData.permissions)
-        if (!validation.isValid) {
-          errors.push(...validation.errors)
-        }
-      } catch (e) {
-        // Fallback validation if composable not available
-        console.warn('Could not validate permissions with centralized system')
-      }
+    // Permissions validation
+    if (!roleData.permissions || Object.keys(roleData.permissions).length === 0) {
+      errors.push('At least one permission is required')
     }
 
     return {
@@ -230,246 +358,110 @@ export const roleUtils = {
     }
   },
 
-  // Format error messages for display
-  formatError(error) {
-    if (error.response?.data?.message) {
-      return error.response.data.message
-    }
-
-    if (error.response?.data?.error) {
-      return error.response.data.error
-    }
-
-    if (error.message) {
-      return error.message
-    }
-
-    return 'An unexpected error occurred'
-  },
-
-  // Get default permissions for common role types using centralized permissions
-  getDefaultPermissions(roleType) {
-    // Try to use centralized permissions if available
-    if (typeof window !== 'undefined') {
-      try {
-        const { getAllResources } = usePermissions()
-        const allResources = getAllResources()
-        
-        // Generate defaults based on role type and available resources
-        const defaults = {}
-        
-        switch (roleType?.toLowerCase()) {
-          case 'admin':
-            // Admin gets all permissions for all resources
-            allResources.forEach(resource => {
-              defaults[resource.name] = resource.actions.map(action => action.name)
-            })
-            break
-            
-          case 'manager':
-            // Manager gets most permissions except critical ones
-            allResources.forEach(resource => {
-              const allowedActions = resource.actions
-                .filter(action => action.risk !== 'critical')
-                .map(action => action.name)
-              if (allowedActions.length > 0) {
-                defaults[resource.name] = allowedActions
-              }
-            })
-            break
-            
-          case 'operator':
-            // Operator gets read and some update permissions
-            allResources.forEach(resource => {
-              const allowedActions = resource.actions
-                .filter(action => ['read', 'update'].includes(action.name) && 
-                               (!action.risk || ['low', 'medium'].includes(action.risk)))
-                .map(action => action.name)
-              if (allowedActions.length > 0) {
-                defaults[resource.name] = allowedActions
-              }
-            })
-            break
-            
-          case 'viewer':
-            // Viewer gets only read permissions
-            allResources.forEach(resource => {
-              const readActions = resource.actions
-                .filter(action => action.name === 'read')
-                .map(action => action.name)
-              if (readActions.length > 0) {
-                defaults[resource.name] = readActions
-              }
-            })
-            break
-        }
-        
-        return defaults
-      } catch (e) {
-        console.warn('Could not generate defaults with centralized system, using fallback')
-      }
-    }
-
-    // Fallback to static defaults if centralized system not available
-    const staticDefaults = {
-      admin: {
-        users: ['create', 'read', 'update', 'delete'],
-        roles: ['create', 'read', 'update', 'delete'],
-        customers: ['create', 'read', 'update', 'delete'],
-        contracts: ['create', 'read', 'update', 'delete'],
-        service_tiers: ['create', 'read', 'update', 'delete'],
-        controllers: ['create', 'read', 'update', 'delete'],
-        cameras: ['create', 'read', 'update', 'delete'],
-        events: ['create', 'read', 'update', 'delete'],
-        api_keys: ['create', 'read', 'update', 'delete'],
-        rf_monitoring: ['create', 'read', 'update', 'delete'],
-        system_config: ['create', 'read', 'update', 'delete'],
-        logs: ['read'],
-        diagnostics: ['read']
-      },
-      manager: {
-        users: ['read', 'update'],
-        customers: ['create', 'read', 'update'],
-        contracts: ['create', 'read', 'update'],
-        service_tiers: ['read'],
-        controllers: ['read', 'update'],
-        cameras: ['read', 'update'],
-        events: ['read', 'update'],
-        api_keys: ['read'],
-        rf_monitoring: ['read', 'update'],
-        logs: ['read'],
-        diagnostics: ['read']
-      },
-      operator: {
-        customers: ['read'],
-        contracts: ['read'],
-        controllers: ['read'],
-        cameras: ['read'],
-        events: ['read', 'update'],
-        rf_monitoring: ['read'],
-        diagnostics: ['read']
-      },
-      viewer: {
-        users: ['read'],
-        customers: ['read'],
-        contracts: ['read'],
-        service_tiers: ['read'],
-        controllers: ['read'],
-        cameras: ['read'],
-        events: ['read'],
-        api_keys: ['read'],
-        rf_monitoring: ['read'],
-        system_config: ['read'],
-        logs: ['read'],
-        diagnostics: ['read']
-      }
-    }
-
-    return staticDefaults[roleType?.toLowerCase()] || {}
-  },
-
-  // Check if user has permission to manage roles
-  canManageRoles(user) {
-    if (!user?.role?.permissions) return false
-    return user.role.permissions.roles?.includes('create') ||
-           user.role.permissions.roles?.includes('update') ||
-           user.role.permissions.roles?.includes('delete') ||
-           user.role.name === 'admin'
-  },
-
-  // Format date for display
-  formatDate(dateString) {
-    if (!dateString) return 'Never'
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return 'Invalid Date'
-    return date.toLocaleDateString()
-  },
-
-  // Format permissions for API request using centralized validation
-  formatPermissionsForAPI(permissions) {
-    // Ensure permissions is a proper object with arrays
-    const formatted = {}
-
-    // Validate using centralized system if available
-    if (typeof window !== 'undefined') {
-      try {
-        const { validatePermissions } = usePermissions()
-        const validation = validatePermissions(permissions)
-        if (!validation.isValid) {
-          console.warn('Invalid permissions detected:', validation.errors)
-        }
-      } catch (e) {
-        // Continue with basic validation
-      }
-    }
-
-    Object.entries(permissions).forEach(([resource, actions]) => {
-      if (Array.isArray(actions) && actions.length > 0) {
-        formatted[resource] = actions
-      }
-    })
-
-    return formatted
-  },
-
-  // Parse permissions from API response
-  parsePermissionsFromAPI(permissions) {
-    if (!permissions || typeof permissions !== 'object') {
-      return {}
-    }
-
-    // Handle both object and string formats
-    if (typeof permissions === 'string') {
-      try {
-        return JSON.parse(permissions)
-      } catch (e) {
-        console.warn('Failed to parse permissions string:', permissions)
-        return {}
-      }
-    }
-
-    return permissions
-  },
-
-  // Get formatted permissions for display using centralized system
-  formatPermissionsForDisplay(permissions) {
-    if (typeof window !== 'undefined') {
-      try {
-        const { formatPermissionsForDisplay } = usePermissions()
-        return formatPermissionsForDisplay(permissions)
-      } catch (e) {
-        // Fallback to basic formatting
-      }
-    }
-
-    // Basic fallback formatting
-    const result = []
-    Object.entries(permissions || {}).forEach(([resourceName, actions]) => {
-      result.push({
-        resource: resourceName.charAt(0).toUpperCase() + resourceName.slice(1),
-        actions: Array.isArray(actions) ? actions.join(', ') : actions
-      })
-    })
-    return result
-  },
-
-  // Clone role with new permissions using centralized defaults
-  cloneRole(originalRole, newRoleType = null) {
-    const clonedRole = {
-      name: `${originalRole.name} (Copy)`,
-      description: `Copy of ${originalRole.name}`,
+  /**
+   * Clone role data for duplication
+   * @param {Object} originalRole - Original role object
+   * @returns {Object} Cloned role data
+   */
+  cloneRole(originalRole) {
+    return {
+      name: `${originalRole.name} Copy`,
+      description: originalRole.description || '',
       permissions: originalRole.permissions ? { ...originalRole.permissions } : {},
       active: true
     }
+  },
 
-    // If a new role type is specified, use default permissions for that type
-    if (newRoleType) {
-      clonedRole.permissions = this.getDefaultPermissions(newRoleType)
-      clonedRole.name = `${newRoleType.charAt(0).toUpperCase() + newRoleType.slice(1)} Role`
-      clonedRole.description = `${newRoleType.charAt(0).toUpperCase() + newRoleType.slice(1)} role with standard permissions`
+  /**
+   * Format role for display in tables
+   * @param {Object} role - Role object
+   * @returns {Object} Formatted role object
+   */
+  formatForTable(role) {
+    return {
+      ...role,
+      statusBadgeClass: this.getStatusBadgeClass(role.active),
+      isProtected: this.isSystemRole(role),
+      permissionCount: this.countPermissions(role),
+      displayType: this.isSystemRole(role) ? 'System Role' : 'Custom Role'
+    }
+  },
+
+  /**
+   * Search/filter roles client-side
+   * @param {Array} roles - Array of roles
+   * @param {string} searchTerm - Search term
+   * @param {Object} filters - Additional filters
+   * @returns {Array} Filtered roles
+   */
+  filterRoles(roles, searchTerm, filters = {}) {
+    if (!Array.isArray(roles)) return []
+
+    let filtered = [...roles]
+
+    // Apply search term
+    if (searchTerm && searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim()
+      filtered = filtered.filter(role => {
+        const searchableText = [
+          role.name,
+          role.description,
+          this.isSystemRole(role) ? 'system' : 'custom'
+        ].filter(Boolean).join(' ').toLowerCase()
+
+        return searchableText.includes(term)
+      })
     }
 
-    return clonedRole
+    // Apply filters
+    if (filters.active !== undefined) {
+      filtered = filtered.filter(role => role.active === filters.active)
+    }
+
+    if (filters.isSystem !== undefined) {
+      filtered = filtered.filter(role => this.isSystemRole(role) === filters.isSystem)
+    }
+
+    if (filters.hasUsers !== undefined) {
+      if (filters.hasUsers) {
+        filtered = filtered.filter(role => (role.user_count || 0) > 0)
+      } else {
+        filtered = filtered.filter(role => (role.user_count || 0) === 0)
+      }
+    }
+
+    return filtered
+  },
+
+  /**
+   * Check if role can be safely deleted
+   * @param {Object} role - Role object
+   * @param {Object} usage - Role usage data
+   * @returns {Object} Deletion eligibility result
+   */
+  canDelete(role, usage) {
+    const checks = {
+      isSystemRole: this.isSystemRole(role),
+      hasActiveUsers: (usage?.active_user_count || 0) > 0,
+      hasAnyUsers: (usage?.total_user_count || 0) > 0
+    }
+
+    const canDelete = !checks.isSystemRole && !checks.hasActiveUsers
+    const reasons = []
+
+    if (checks.isSystemRole) {
+      reasons.push('System roles cannot be deleted')
+    }
+    if (checks.hasActiveUsers) {
+      reasons.push(`Role has ${usage.active_user_count} active user(s) assigned`)
+    }
+
+    return {
+      canDelete,
+      reasons,
+      checks,
+      requiresReassignment: checks.hasActiveUsers && !checks.isSystemRole
+    }
   }
 }
 

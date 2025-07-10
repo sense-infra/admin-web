@@ -164,6 +164,7 @@ import FormField from '@/components/forms/FormField.vue'
 import ActionIcon from '@/components/icons/ActionIcons.vue'
 import api from '@/services/api'
 import { useErrorHandler } from '@/utils/errorHandling'
+import { formatDate } from '@/utils/formatters'
 import {
   validatePassword,
   getPasswordStrength,
@@ -182,7 +183,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'updated'])
 
-// Use your existing error handler
+// ✅ CONSOLIDATED: Use centralized error handler
 const { handleError } = useErrorHandler('Password Management')
 
 const loading = ref(false)
@@ -193,7 +194,7 @@ const generatedPassword = ref(null)
 const passwordError = ref('')
 const validationAttempted = ref(false) // ENHANCED: Track validation attempts
 
-// ENHANCED: Consolidated password validation
+// ✅ CONSOLIDATED: Consolidated password validation
 const isPasswordValid = computed(() => {
   if (!manualPassword.value) return false
   const validation = validatePassword(manualPassword.value)
@@ -201,7 +202,7 @@ const isPasswordValid = computed(() => {
   return validation === true
 })
 
-// Password requirements computed property - CONSOLIDATED from FormModal pattern
+// ✅ CONSOLIDATED: Password requirements computed property
 const passwordRequirements = computed(() => {
   const pwd = manualPassword.value
   if (!pwd) {
@@ -223,7 +224,7 @@ const passwordRequirements = computed(() => {
   }
 })
 
-// CONSOLIDATED: Password strength helper functions (same as UserFormModal)
+// ✅ CONSOLIDATED: Password strength helper functions (same as UserFormModal)
 const getStrengthColorClass = (password, isBar = false) => {
   const strength = getPasswordStrength(password)
   const prefix = isBar ? 'bg-' : 'text-'
@@ -237,11 +238,6 @@ const getStrengthColorClass = (password, isBar = false) => {
   }
 
   return colorMap[strength] || `${prefix}gray-400`
-}
-
-const formatDate = (dateString) => {
-  if (!dateString) return 'Never'
-  return new Date(dateString).toLocaleString()
 }
 
 const clearMessages = () => {
@@ -266,10 +262,10 @@ const copyToClipboard = async (text) => {
   }
 }
 
-// ENHANCED: Manual reset with validation feedback
+// ✅ CONSOLIDATED: Manual reset with validation feedback
 const handleManualReset = async () => {
   validationAttempted.value = true // Mark that user tried to submit
-  
+
   if (!isPasswordValid.value) {
     // Show validation feedback and focus the field
     setTimeout(() => {
@@ -334,7 +330,7 @@ const handleGeneratePassword = async () => {
   }
 }
 
-// ENHANCED: Watch for password changes to provide real-time feedback after first attempt
+// ✅ CONSOLIDATED: Watch for password changes to provide real-time feedback after first attempt
 watch(() => manualPassword.value, () => {
   if (validationAttempted.value) {
     // Clear error state when user starts typing after failed validation
