@@ -6,11 +6,11 @@
     :validation-rules="validationRules"
     :submit-handler="handleSubmit"
     :validate-on-change="true"
-    size="xl"
+    size="extra-large"
     @close="$emit('close')"
     @saved="handleSaved"
   >
-    <template #default="{ form, errors, isEditing, isFormValid }">
+    <template #default="{ form, errors, isEditing, isFormValid, updateField, clearError }">
       <div class="space-y-6">
         <!-- Server Error Display -->
         <div v-if="serverError" class="p-3 bg-red-50 border border-red-200 rounded-md">
@@ -25,7 +25,8 @@
         <!-- Basic Information -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FormField
-            v-model="form.name"
+            :model-value="form.name"
+            @update:model-value="updateField('name', $event)"
             type="text"
             label="Role Name"
             :error="errors.name"
@@ -36,7 +37,8 @@
 
           <div class="flex items-end">
             <FormField
-              v-model="form.active"
+              :model-value="form.active"
+              @update:model-value="updateField('active', $event)"
               type="checkbox"
               label="Active"
               :error="errors.active"
@@ -45,12 +47,13 @@
         </div>
 
         <FormField
-          v-model="form.description"
+          :model-value="form.description"
+          @update:model-value="updateField('description', $event)"
           type="textarea"
           label="Description"
           :error="errors.description"
           placeholder="Describe this role and its purpose..."
-          rows="3"
+          :rows="3"
         />
 
         <!-- System Role Warning -->
@@ -73,7 +76,7 @@
                 v-for="roleType in roleTypes"
                 :key="roleType.id"
                 type="button"
-                @click="applyRoleDefaults(roleType.id)"
+                @click="applyRoleDefaults(roleType.id, form, updateField)"
                 :class="[
                   'px-3 py-2 text-sm font-medium rounded-lg transition-colors',
                   roleType.class
@@ -84,7 +87,7 @@
             </div>
             <p class="mt-2 text-xs text-gray-600">
               Start with a template, then customize below. Current pattern:
-              <span class="font-medium">{{ currentRoleType }}</span>
+              <span class="font-medium">{{ getCurrentRoleType(form.permissions) }}</span>
             </p>
           </div>
         </div>
@@ -96,14 +99,14 @@
             <div class="flex gap-2">
               <button
                 type="button"
-                @click="setAllPermissions"
+                @click="setAllPermissions(form, updateField)"
                 class="text-xs px-2 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200"
               >
                 Select All
               </button>
               <button
                 type="button"
-                @click="clearAllPermissions"
+                @click="clearAllPermissions(form, updateField)"
                 class="text-xs px-2 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200"
               >
                 Clear All
@@ -126,8 +129,8 @@
                 <label class="flex items-center">
                   <input
                     type="checkbox"
-                    :checked="hasAllCategoryPermissions(categoryKey)"
-                    @change="setCategoryPermissions(categoryKey, $event.target.checked)"
+                    :checked="hasAllCategoryPermissions(form.permissions, categoryKey)"
+                    @change="setCategoryPermissions(categoryKey, $event.target.checked, form, updateField)"
                     class="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                   />
                   <span class="ml-2 text-sm text-gray-700">All</span>
@@ -148,12 +151,12 @@
                     </h6>
                     <button
                       type="button"
-                      @click="toggleResourcePermissions(resource.name)"
+                      @click="toggleResourcePermissions(resource.name, form, updateField)"
                       class="text-xs px-2 py-1 rounded"
-                      :class="hasAllResourcePermissions(resource.name) ?
+                      :class="hasAllResourcePermissions(form.permissions, resource.name) ?
                         'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'"
                     >
-                      {{ hasAllResourcePermissions(resource.name) ? 'All' : 'None' }}
+                      {{ hasAllResourcePermissions(form.permissions, resource.name) ? 'All' : 'None' }}
                     </button>
                   </div>
 
@@ -165,8 +168,8 @@
                     >
                       <input
                         type="checkbox"
-                        :checked="hasPermission(resource.name, action.name)"
-                        @change="togglePermission(resource.name, action.name, $event.target.checked)"
+                        :checked="hasPermission(form.permissions, resource.name, action.name)"
+                        @change="togglePermission(resource.name, action.name, $event.target.checked, form, updateField)"
                         class="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                       />
                       <span class="flex items-center flex-1">
@@ -191,50 +194,38 @@
             </div>
 
             <!-- Permission Summary -->
-            <div v-if="Object.keys(form.permissions).length > 0" class="mt-6 p-4 bg-purple-50 rounded-lg">
+            <div v-if="getPermissionCount(form.permissions) > 0" class="mt-6 p-4 bg-purple-50 rounded-lg">
               <div class="flex justify-between items-start mb-3">
                 <h6 class="text-sm font-medium text-purple-900">Permission Summary</h6>
                 <div class="text-xs text-purple-700">
-                  {{ permissionStats.totalResources }} resources, {{ permissionStats.totalActions }} actions
+                  {{ getPermissionCount(form.permissions) }} total permissions
                 </div>
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <h6 class="text-xs font-medium text-purple-800 mb-2">By Category:</h6>
-                  <div class="space-y-1">
-                    <div
-                      v-for="(count, category) in permissionStats.resourceBreakdown"
-                      :key="category"
-                      class="flex justify-between text-xs"
+                  <h6 class="text-xs font-medium text-purple-800 mb-2">Resources:</h6>
+                  <div class="flex flex-wrap gap-1">
+                    <span
+                      v-for="resource in Object.keys(form.permissions || {})"
+                      :key="resource"
+                      class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800"
                     >
-                      <span class="text-purple-700">{{ categories[category]?.label || category }}:</span>
-                      <span class="text-purple-900 font-medium">{{ count }} actions</span>
-                    </div>
+                      {{ getResourceLabel(resource) }}
+                    </span>
                   </div>
                 </div>
 
                 <div>
-                  <h6 class="text-xs font-medium text-purple-800 mb-2">Risk Breakdown:</h6>
+                  <h6 class="text-xs font-medium text-purple-800 mb-2">Actions by Resource:</h6>
                   <div class="space-y-1">
                     <div
-                      v-for="(count, risk) in permissionStats.riskBreakdown"
-                      :key="risk"
-                      v-show="count > 0"
+                      v-for="(actions, resource) in (form.permissions || {})"
+                      :key="resource"
                       class="flex justify-between text-xs"
                     >
-                      <span class="text-purple-700 capitalize">{{ risk }} Risk:</span>
-                      <span
-                        class="font-medium"
-                        :class="{
-                          'text-green-700': risk === 'low',
-                          'text-yellow-700': risk === 'medium',
-                          'text-orange-700': risk === 'high',
-                          'text-red-700': risk === 'critical'
-                        }"
-                      >
-                        {{ count }}
-                      </span>
+                      <span class="text-purple-700">{{ getResourceLabel(resource) }}:</span>
+                      <span class="text-purple-900 font-medium">{{ actions.length }}</span>
                     </div>
                   </div>
                 </div>
@@ -286,8 +277,7 @@ const {
   categories,
   generateDefaultPermissions,
   getResourcesByCategory,
-  matchesRoleType,
-  getPermissionStats
+  matchesRoleType
 } = useRolePermissions()
 
 const serverError = ref('')
@@ -362,54 +352,108 @@ const roleTypes = [
   { id: 'viewer', label: 'Viewer (Read Only)', class: 'bg-gray-100 text-gray-800 hover:bg-gray-200' }
 ]
 
-const currentRoleType = computed(() => {
-  // This would match the form permissions against known patterns
-  return 'Custom' // Will implement with actual form integration
-})
-
-const permissionStats = computed(() => {
-  // Calculate stats from current form permissions
-  return getPermissionStats({}) // Will implement with actual form integration
-})
-
-// Permission methods that work with form data - these need to be connected to FormModal
-const hasPermission = (resourceName, actionName) => {
-  // This needs to work with the form data from FormModal
-  return false // Will be implemented with actual form integration
+// ✅ WORKING PERMISSION FUNCTIONS
+const hasPermission = (permissions, resourceName, actionName) => {
+  return permissions?.[resourceName]?.includes(actionName) || false
 }
 
-const togglePermission = (resourceName, actionName, checked) => {
-  // This needs to work with the form data from FormModal
+const togglePermission = (resourceName, actionName, checked, form, updateField) => {
+  const currentPermissions = { ...form.permissions }
+  
+  if (!currentPermissions[resourceName]) {
+    currentPermissions[resourceName] = []
+  }
+
+  if (checked) {
+    if (!currentPermissions[resourceName].includes(actionName)) {
+      currentPermissions[resourceName].push(actionName)
+    }
+  } else {
+    currentPermissions[resourceName] = currentPermissions[resourceName].filter(a => a !== actionName)
+    if (currentPermissions[resourceName].length === 0) {
+      delete currentPermissions[resourceName]
+    }
+  }
+
+  updateField('permissions', currentPermissions)
 }
 
-const hasAllResourcePermissions = (resourceName) => {
-  // This needs to work with the form data from FormModal
-  return false
+const hasAllResourcePermissions = (permissions, resourceName) => {
+  const resource = availableResources.value.find(r => r.name === resourceName)
+  if (!resource) return false
+  
+  return resource.actions.every(action =>
+    permissions?.[resourceName]?.includes(action.name)
+  )
 }
 
-const toggleResourcePermissions = (resourceName) => {
-  // This needs to work with the form data from FormModal
+const toggleResourcePermissions = (resourceName, form, updateField) => {
+  const resource = availableResources.value.find(r => r.name === resourceName)
+  if (!resource) return
+
+  const currentPermissions = { ...form.permissions }
+  const hasAll = hasAllResourcePermissions(currentPermissions, resourceName)
+
+  if (hasAll) {
+    delete currentPermissions[resourceName]
+  } else {
+    currentPermissions[resourceName] = resource.actions.map(action => action.name)
+  }
+
+  updateField('permissions', currentPermissions)
 }
 
-const hasAllCategoryPermissions = (categoryKey) => {
-  // This needs to work with the form data from FormModal
-  return false
+const hasAllCategoryPermissions = (permissions, categoryKey) => {
+  const categoryResources = getResourcesByCategory(categoryKey)
+  return categoryResources.every(resource =>
+    hasAllResourcePermissions(permissions, resource.name)
+  )
 }
 
-const setCategoryPermissions = (categoryKey, checked) => {
-  // This needs to work with the form data from FormModal
+const setCategoryPermissions = (categoryKey, enabled, form, updateField) => {
+  const categoryResources = getResourcesByCategory(categoryKey)
+  const currentPermissions = { ...form.permissions }
+
+  categoryResources.forEach(resource => {
+    if (enabled) {
+      currentPermissions[resource.name] = resource.actions.map(action => action.name)
+    } else {
+      delete currentPermissions[resource.name]
+    }
+  })
+
+  updateField('permissions', currentPermissions)
 }
 
-const setAllPermissions = () => {
-  // This needs to work with the form data from FormModal
+const setAllPermissions = (form, updateField) => {
+  const allPermissions = {}
+  availableResources.value.forEach(resource => {
+    allPermissions[resource.name] = resource.actions.map(action => action.name)
+  })
+  updateField('permissions', allPermissions)
 }
 
-const clearAllPermissions = () => {
-  // This needs to work with the form data from FormModal
+const clearAllPermissions = (form, updateField) => {
+  updateField('permissions', {})
 }
 
-const applyRoleDefaults = (roleType) => {
-  // This needs to work with the form data from FormModal
+const applyRoleDefaults = (roleType, form, updateField) => {
+  const defaultPermissions = generateDefaultPermissions(roleType)
+  updateField('permissions', defaultPermissions)
+}
+
+const getCurrentRoleType = (permissions) => {
+  return matchesRoleType(permissions || {})
+}
+
+const getPermissionCount = (permissions) => {
+  if (!permissions) return 0
+  return Object.values(permissions).reduce((total, actions) => total + actions.length, 0)
+}
+
+const getResourceLabel = (resourceName) => {
+  const resource = availableResources.value.find(r => r.name === resourceName)
+  return resource?.label || resourceName
 }
 
 const getActionIcon = (actionName) => {

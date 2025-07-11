@@ -177,9 +177,10 @@
       />
     </div>
 
-    <!-- ✅ CONSOLIDATED: Modals -->
+    <!-- ✅ FIXED: Modals with proper state management and safety checks -->
     <RoleFormModal
-      v-if="showCreateModal"
+      v-if="canShowCreateModal"
+      key="create-role-modal"
       :show-modal="showCreateModal"
       :all-roles="roles"
       @close="closeCreateModal"
@@ -187,8 +188,9 @@
     />
 
     <RoleFormModal
-      v-if="showEditModal"
-      :role="selectedRole"
+      v-if="canShowEditModal"
+      :key="`edit-role-modal-${safeSelectedRole.role_id || 'new'}-${isCloning ? 'clone' : 'edit'}`"
+      :role="safeSelectedRole"
       :is-clone="isCloning"
       :all-roles="roles"
       @close="closeEditModal"
@@ -197,21 +199,21 @@
 
     <!-- View Role Modal -->
     <BaseModal
-      :open="showViewModal"
+      :open="showViewModal && !!selectedRole"
       title="Role Details"
       size="large"
       @close="showViewModal = false"
     >
-      <div v-if="selectedRole" class="space-y-6">
+      <div v-if="safeSelectedRole.role_id" class="space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h4 class="font-medium text-gray-900 mb-3">Role Information</h4>
             <div class="space-y-2 text-sm">
-              <div><strong>Name:</strong> {{ selectedRole.name }}</div>
-              <div><strong>Description:</strong> {{ selectedRole.description || 'No description' }}</div>
+              <div><strong>Name:</strong> {{ safeSelectedRole.name }}</div>
+              <div><strong>Description:</strong> {{ safeSelectedRole.description || 'No description' }}</div>
               <div><strong>Type:</strong>
-                <span :class="roleUtils.isSystemRole(selectedRole) ? 'text-blue-600' : 'text-purple-600'">
-                  {{ roleUtils.isSystemRole(selectedRole) ? 'System Role' : 'Custom Role' }}
+                <span :class="roleUtils.isSystemRole(safeSelectedRole) ? 'text-blue-600' : 'text-purple-600'">
+                  {{ roleUtils.isSystemRole(safeSelectedRole) ? 'System Role' : 'Custom Role' }}
                 </span>
               </div>
             </div>
@@ -220,31 +222,31 @@
           <div>
             <h4 class="font-medium text-gray-900 mb-3">Role Status</h4>
             <div class="space-y-2 text-sm">
-              <div><strong>Role ID:</strong> #{{ selectedRole.role_id }}</div>
+              <div><strong>Role ID:</strong> #{{ safeSelectedRole.role_id }}</div>
               <div><strong>Status:</strong>
-                <span :class="roleUtils.getStatusBadgeClass(selectedRole.active)" class="inline-flex items-center px-2 py-1 rounded text-xs font-medium ml-1">
+                <span :class="roleUtils.getStatusBadgeClass(safeSelectedRole.active)" class="inline-flex items-center px-2 py-1 rounded text-xs font-medium ml-1">
                   <ActionIcon
-                    :name="selectedRole.active ? 'success' : 'warning'"
+                    :name="safeSelectedRole.active ? 'success' : 'warning'"
                     size="xs"
                     class="mr-1"
                   />
-                  {{ selectedRole.active ? 'Active' : 'Inactive' }}
+                  {{ safeSelectedRole.active ? 'Active' : 'Inactive' }}
                 </span>
               </div>
-              <div><strong>Users:</strong> {{ selectedRole.user_count || 0 }}</div>
-              <div><strong>Created:</strong> {{ formatDate(selectedRole.created_at) }}</div>
-              <div><strong>Last Updated:</strong> {{ formatDate(selectedRole.updated_at) }}</div>
+              <div><strong>Users:</strong> {{ safeSelectedRole.user_count || 0 }}</div>
+              <div><strong>Created:</strong> {{ formatDate(safeSelectedRole.created_at) }}</div>
+              <div><strong>Last Updated:</strong> {{ formatDate(safeSelectedRole.updated_at) }}</div>
             </div>
           </div>
         </div>
 
         <!-- Role Permissions -->
-        <div v-if="selectedRole.permissions && Object.keys(selectedRole.permissions).length > 0">
+        <div v-if="safeSelectedRole.permissions && Object.keys(safeSelectedRole.permissions).length > 0">
           <h4 class="font-medium text-gray-900 mb-3">Role Permissions</h4>
           <div class="bg-gray-50 rounded-lg p-4">
             <div class="flex flex-wrap gap-2">
               <span
-                v-for="(actions, resource) in selectedRole.permissions"
+                v-for="(actions, resource) in safeSelectedRole.permissions"
                 :key="resource"
                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
               >
@@ -252,13 +254,13 @@
               </span>
             </div>
             <div class="mt-2 text-sm text-gray-600">
-              Total: {{ roleUtils.countPermissions(selectedRole) }} permissions
+              Total: {{ roleUtils.countPermissions(safeSelectedRole) }} permissions
             </div>
           </div>
         </div>
 
         <!-- System Role Notice -->
-        <div v-if="roleUtils.isSystemRole(selectedRole)" class="bg-blue-50 border border-blue-200 rounded-md p-4">
+        <div v-if="roleUtils.isSystemRole(safeSelectedRole)" class="bg-blue-50 border border-blue-200 rounded-md p-4">
           <div class="flex">
             <ActionIcon name="info" size="sm" class="text-blue-400 mr-2 mt-0.5" />
             <div>
@@ -276,7 +278,7 @@
             Close
           </button>
           <button
-            v-if="canManageRoles && selectedRole && !roleUtils.isSystemRole(selectedRole)"
+            v-if="canManageRoles && safeSelectedRole.role_id && !roleUtils.isSystemRole(safeSelectedRole)"
             @click="editFromView"
             class="btn btn-primary"
           >
@@ -289,7 +291,7 @@
 
     <!-- ✅ CONSOLIDATED: Delete Confirmation Modal -->
     <RoleDeleteConfirmationModal
-      v-if="showDeleteModal"
+      v-if="showDeleteModal && selectedRole"
       :role="selectedRole"
       :available-roles="availableRolesForReassignment"
       @close="showDeleteModal = false"
@@ -300,7 +302,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { rolesService, roleUtils } from '@/services/roles'
@@ -347,6 +349,19 @@ const showViewModal = ref(false)
 const showDeleteModal = ref(false)
 const selectedRole = ref(null)
 const isCloning = ref(false)
+
+// ✅ FIXED: Safety computed properties to prevent null access
+const safeSelectedRole = computed(() => {
+  return selectedRole.value || {}
+})
+
+const canShowEditModal = computed(() => {
+  return showEditModal.value && selectedRole.value && selectedRole.value.role_id
+})
+
+const canShowCreateModal = computed(() => {
+  return showCreateModal.value && !showEditModal.value
+})
 
 // ✅ CONSOLIDATED: Define table columns for DataTable
 const roleColumns = [
@@ -473,6 +488,35 @@ const availableRolesForReassignment = computed(() => {
   )
 })
 
+// ✅ FIXED: Watch for conflicting modal states and resolve them
+watch([showCreateModal, showEditModal, showViewModal, showDeleteModal], ([create, edit, view, deleteModal]) => {
+  // Ensure only one modal is open at a time
+  if (create && (edit || view || deleteModal)) {
+    showEditModal.value = false
+    showViewModal.value = false
+    showDeleteModal.value = false
+  }
+  if (edit && (view || deleteModal)) {
+    showViewModal.value = false
+    showDeleteModal.value = false
+  }
+  if (view && deleteModal) {
+    showDeleteModal.value = false
+  }
+})
+
+// ✅ FIXED: Clear selection when modals close
+watch(showEditModal, (newValue) => {
+  if (!newValue) {
+    setTimeout(() => {
+      if (!showCreateModal.value && !showViewModal.value && !showDeleteModal.value) {
+        selectedRole.value = null
+        isCloning.value = false
+      }
+    }, 100)
+  }
+})
+
 // Helper function to get resource label using centralized permissions
 const getResourceLabel = (resourceName) => {
   const resource = getResource(resourceName)
@@ -535,7 +579,7 @@ const loadRoles = async () => {
   }
 }
 
-// Modal handlers
+// ✅ FIXED: Modal handlers with enhanced safety
 const closeCreateModal = () => {
   showCreateModal.value = false
   selectedRole.value = null
@@ -549,8 +593,14 @@ const closeEditModal = () => {
 
 const handleRoleSaved = async (result) => {
   await loadRoles()
-  closeCreateModal()
-  closeEditModal()
+  
+  // Close modals safely
+  if (showCreateModal.value) {
+    closeCreateModal()
+  }
+  if (showEditModal.value) {
+    closeEditModal()
+  }
 }
 
 const handleRoleUpdated = async () => {
@@ -583,36 +633,54 @@ const handleUsersReassigned = async () => {
   await loadRoles()
 }
 
-// Role actions
+// ✅ FIXED: Role actions with null safety
 const viewRole = (role) => {
+  if (!role) return
   selectedRole.value = { ...role }
   showViewModal.value = true
 }
 
 const editRole = (role) => {
+  if (!role) return
+  
+  // Close any open modals first
+  showCreateModal.value = false
+  showViewModal.value = false
+  
+  // Then open edit modal
   selectedRole.value = { ...role }
   isCloning.value = false
   showEditModal.value = true
 }
 
 const editFromView = () => {
+  if (!selectedRole.value) return
+  
   showViewModal.value = false
   showEditModal.value = true
 }
 
 const cloneRole = (role) => {
+  if (!role) return
+  
+  // Close any open modals first
+  showCreateModal.value = false
+  showViewModal.value = false
+  
+  // Then open clone modal
   selectedRole.value = { ...role }
   isCloning.value = true
   showEditModal.value = true
 }
 
 const deleteRole = (role) => {
+  if (!role) return
   selectedRole.value = { ...role }
   showDeleteModal.value = true
 }
 
 const toggleRoleStatus = async (role) => {
-  if (roleUtils.isSystemRole(role)) {
+  if (!role || roleUtils.isSystemRole(role)) {
     error.value = 'Cannot modify system roles'
     return
   }
