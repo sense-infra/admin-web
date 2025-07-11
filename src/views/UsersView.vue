@@ -159,42 +159,44 @@
       </template>
     </DataTable>
 
-    <!-- Create Modal -->
+    <!-- ✅ SAFETY: Create Modal with safe computed -->
     <UserFormModal
-      v-if="showCreateModal"
+      v-if="canShowCreateModal"
+      key="create-user-modal"
       :show-modal="showCreateModal"
       :all-users="users"
       @close="closeCreateModal"
       @saved="handleUserSaved"
     />
 
-    <!-- Edit Modal -->
+    <!-- ✅ SAFETY: Edit Modal with safe computed -->
     <UserFormModal
-      v-if="showEditModal"
-      :user="selectedUser"
+      v-if="canShowEditModal"
+      :key="`edit-user-modal-${safeSelectedUser.user_id || 'new'}`"
+      :user="safeSelectedUser"
       :all-users="users"
       @close="closeEditModal"
       @saved="handleUserSaved"
     />
 
-    <!-- View User Modal -->
+    <!-- ✅ SAFETY: View User Modal with safe computed -->
     <BaseModal
-      :open="showViewModal"
+      :open="canShowViewModal"
       title="User Details"
       size="large"
       @close="showViewModal = false"
     >
-      <div v-if="selectedUser" class="space-y-6">
+      <div v-if="safeSelectedUser.user_id" class="space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h4 class="font-medium text-gray-900 mb-3">Account Information</h4>
             <div class="space-y-2 text-sm">
-              <div><strong>Username:</strong> {{ selectedUser.username }}</div>
-              <div><strong>Email:</strong> {{ selectedUser.email }}</div>
-              <div><strong>Full Name:</strong> {{ userUtils.getDisplayName(selectedUser) }}</div>
+              <div><strong>Username:</strong> {{ safeSelectedUser.username }}</div>
+              <div><strong>Email:</strong> {{ safeSelectedUser.email }}</div>
+              <div><strong>Full Name:</strong> {{ userUtils.getDisplayName(safeSelectedUser) }}</div>
               <div><strong>Role:</strong>
-                <span :class="userUtils.getRoleBadgeClass(selectedUser.role)" class="inline-flex items-center px-2 py-1 rounded text-xs font-medium ml-1">
-                  {{ selectedUser.role?.name || 'No Role' }}
+                <span :class="userUtils.getRoleBadgeClass(safeSelectedUser.role)" class="inline-flex items-center px-2 py-1 rounded text-xs font-medium ml-1">
+                  {{ safeSelectedUser.role?.name || 'No Role' }}
                 </span>
               </div>
             </div>
@@ -203,31 +205,31 @@
           <div>
             <h4 class="font-medium text-gray-900 mb-3">Account Status</h4>
             <div class="space-y-2 text-sm">
-              <div><strong>User ID:</strong> #{{ selectedUser.user_id }}</div>
+              <div><strong>User ID:</strong> #{{ safeSelectedUser.user_id }}</div>
               <div><strong>Status:</strong>
-                <span :class="userUtils.getStatusBadgeClass(selectedUser.active)" class="inline-flex items-center px-2 py-1 rounded text-xs font-medium ml-1">
+                <span :class="userUtils.getStatusBadgeClass(safeSelectedUser.active)" class="inline-flex items-center px-2 py-1 rounded text-xs font-medium ml-1">
                   <ActionIcon
-                    :name="selectedUser.active ? 'success' : 'warning'"
+                    :name="safeSelectedUser.active ? 'success' : 'warning'"
                     size="xs"
-                    :class="selectedUser.active ? 'text-green-400 mr-1' : 'text-yellow-400 mr-1'"
+                    :class="safeSelectedUser.active ? 'text-green-400 mr-1' : 'text-yellow-400 mr-1'"
                   />
-                  {{ selectedUser.active ? 'Active' : 'Inactive' }}
+                  {{ safeSelectedUser.active ? 'Active' : 'Inactive' }}
                 </span>
               </div>
-              <div><strong>Last Login:</strong> {{ formatDate(selectedUser.last_login) }}</div>
-              <div><strong>Created:</strong> {{ formatDate(selectedUser.created_at) }}</div>
-              <div><strong>Last Updated:</strong> {{ formatDate(selectedUser.updated_at) }}</div>
+              <div><strong>Last Login:</strong> {{ formatDate(safeSelectedUser.last_login) }}</div>
+              <div><strong>Created:</strong> {{ formatDate(safeSelectedUser.created_at) }}</div>
+              <div><strong>Last Updated:</strong> {{ formatDate(safeSelectedUser.updated_at) }}</div>
             </div>
           </div>
         </div>
 
         <!-- Role Permissions -->
-        <div v-if="selectedUser.role && selectedUser.role.permissions">
+        <div v-if="safeSelectedUser.role && safeSelectedUser.role.permissions">
           <h4 class="font-medium text-gray-900 mb-3">Role Permissions</h4>
           <div class="bg-gray-50 rounded-lg p-4">
             <div class="flex flex-wrap gap-2">
               <span
-                v-for="(actions, resource) in selectedUser.role.permissions"
+                v-for="(actions, resource) in safeSelectedUser.role.permissions"
                 :key="resource"
                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
               >
@@ -238,7 +240,7 @@
         </div>
 
         <!-- System User Notice -->
-        <div v-if="userUtils.isSystemUser(selectedUser)" class="bg-blue-50 border border-blue-200 rounded-md p-4">
+        <div v-if="userUtils.isSystemUser(safeSelectedUser)" class="bg-blue-50 border border-blue-200 rounded-md p-4">
           <div class="flex">
             <ActionIcon name="info" size="sm" class="text-blue-400 mr-2 mt-0.5" />
             <div>
@@ -257,34 +259,35 @@
       </template>
     </BaseModal>
 
+    <!-- ✅ SAFETY: Password Modal with safe computed -->
     <PasswordManagementModal
-      v-if="showPasswordModal"
-      :user="selectedUser"
+      v-if="canShowPasswordModal"
+      :user="safeSelectedUser"
       @close="showPasswordModal = false"
       @updated="handlePasswordChanged"
     />
 
-    <!-- Delete Confirmation Modal -->
+    <!-- ✅ SAFETY: Delete Confirmation Modal with safe computed -->
     <ConfirmationModal
-      :open="showDeleteModal"
+      :open="canShowDeleteModal"
       type="danger"
       entity-name="user"
-      :entity-value="selectedUser?.username"
+      :entity-value="safeSelectedUser?.username"
       :loading="deleteLoading"
       @close="showDeleteModal = false"
       @confirm="confirmDelete"
     >
       <template #default>
         <p class="text-sm text-gray-600 mb-4">
-          Are you sure you want to delete user "{{ selectedUser?.username }}"? This action cannot be undone.
+          Are you sure you want to delete user "{{ safeSelectedUser?.username }}"? This action cannot be undone.
         </p>
 
-        <div v-if="selectedUser && getActiveSessionsCount(selectedUser) > 0" class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+        <div v-if="safeSelectedUser.user_id && getActiveSessionsCount(safeSelectedUser) > 0" class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <div class="flex">
             <ActionIcon name="warning" size="sm" class="text-yellow-400 mr-2" />
             <div>
               <p class="text-sm text-yellow-800">
-                <strong>Warning:</strong> This user has {{ getActiveSessionsCount(selectedUser) }} active session(s).
+                <strong>Warning:</strong> This user has {{ getActiveSessionsCount(safeSelectedUser) }} active session(s).
                 Deleting the user will immediately terminate all active sessions.
               </p>
             </div>
@@ -293,9 +296,9 @@
       </template>
     </ConfirmationModal>
 
-    <!-- Status Toggle Confirmation Modal -->
+    <!-- ✅ SAFETY: Status Toggle Confirmation Modal with safe computed -->
     <ConfirmationModal
-      :open="showStatusModal"
+      :open="canShowStatusModal"
       :type="statusAction === 'deactivate' ? 'warning' : 'info'"
       :title="`${statusAction === 'deactivate' ? 'Deactivate' : 'Activate'} User`"
       :loading="statusLoading"
@@ -304,16 +307,16 @@
     >
       <template #default>
         <p class="text-sm text-gray-600 mb-4">
-          Are you sure you want to {{ statusAction }} user "{{ selectedUser?.username }}"?
+          Are you sure you want to {{ statusAction }} user "{{ safeSelectedUser?.username }}"?
         </p>
 
-        <div v-if="statusAction === 'deactivate' && selectedUser && getActiveSessionsCount(selectedUser) > 0"
+        <div v-if="statusAction === 'deactivate' && safeSelectedUser.user_id && getActiveSessionsCount(safeSelectedUser) > 0"
              class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <div class="flex">
             <ActionIcon name="warning" size="sm" class="text-yellow-400 mr-2" />
             <div>
               <p class="text-sm text-yellow-800">
-                <strong>Note:</strong> Deactivating this user will immediately terminate {{ getActiveSessionsCount(selectedUser) }} active session(s).
+                <strong>Note:</strong> Deactivating this user will immediately terminate {{ getActiveSessionsCount(safeSelectedUser) }} active session(s).
               </p>
             </div>
           </div>
@@ -324,7 +327,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { userService, userUtils } from '@/services/users'
@@ -377,6 +380,83 @@ const selectedUser = ref(null)
 const deleteLoading = ref(false)
 const statusLoading = ref(false)
 const statusAction = ref('') // 'activate' or 'deactivate'
+
+// ✅ SAFETY: Computed properties to prevent null access
+const safeSelectedUser = computed(() => {
+  return selectedUser.value || {}
+})
+
+const canShowEditModal = computed(() => {
+  return !!(showEditModal.value && selectedUser.value && selectedUser.value.user_id)
+})
+
+const canShowCreateModal = computed(() => {
+  return !!(showCreateModal.value && !showEditModal.value)
+})
+
+const canShowPasswordModal = computed(() => {
+  return !!(showPasswordModal.value && selectedUser.value && selectedUser.value.user_id)
+})
+
+const canShowViewModal = computed(() => {
+  return !!(showViewModal.value && selectedUser.value && selectedUser.value.user_id)
+})
+
+const canShowDeleteModal = computed(() => {
+  return !!(showDeleteModal.value && selectedUser.value && selectedUser.value.user_id)
+})
+
+const canShowStatusModal = computed(() => {
+  return !!(showStatusModal.value && selectedUser.value && selectedUser.value.user_id)
+})
+
+// ✅ SAFETY: Watch for conflicting modal states and resolve them
+watch([showCreateModal, showEditModal, showViewModal, showPasswordModal, showDeleteModal, showStatusModal], 
+  ([create, edit, view, password, deleteModal, status]) => {
+  // Ensure only one modal is open at a time
+  const activeModals = [create, edit, view, password, deleteModal, status].filter(Boolean).length
+  
+  if (activeModals > 1) {
+    // Priority order: delete > status > password > edit > view > create
+    if (deleteModal) {
+      showCreateModal.value = false
+      showEditModal.value = false
+      showViewModal.value = false
+      showPasswordModal.value = false
+      showStatusModal.value = false
+    } else if (status) {
+      showCreateModal.value = false
+      showEditModal.value = false
+      showViewModal.value = false
+      showPasswordModal.value = false
+    } else if (password) {
+      showCreateModal.value = false
+      showEditModal.value = false
+      showViewModal.value = false
+    } else if (edit) {
+      showCreateModal.value = false
+      showViewModal.value = false
+    } else if (view) {
+      showCreateModal.value = false
+    }
+  }
+})
+
+// ✅ SAFETY: Clear selection when modals close
+watch([showEditModal, showPasswordModal, showDeleteModal, showStatusModal], 
+  ([edit, password, deleteModal, status]) => {
+  // If all action modals are closed, clear selection after a delay
+  if (!edit && !password && !deleteModal && !status) {
+    setTimeout(() => {
+      if (!showCreateModal.value && !showViewModal.value && 
+          !showEditModal.value && !showPasswordModal.value && 
+          !showDeleteModal.value && !showStatusModal.value) {
+        selectedUser.value = null
+        statusAction.value = ''
+      }
+    }, 100)
+  }
+})
 
 // ✅ CONSOLIDATED: Define table columns for DataTable with proper sorting paths
 const userColumns = [
@@ -496,6 +576,24 @@ const getResourceLabel = (resourceName) => {
   return resource?.label || resourceName
 }
 
+// ✅ SAFETY: Enhanced error handling with recovery
+const handleUserError = (error, context = '') => {
+  console.error(`User management error ${context}:`, error)
+  
+  // Reset modal states on error
+  showCreateModal.value = false
+  showEditModal.value = false
+  showPasswordModal.value = false
+  showDeleteModal.value = false
+  showStatusModal.value = false
+  selectedUser.value = null
+  statusAction.value = ''
+  deleteLoading.value = false
+  statusLoading.value = false
+  
+  return handleError(error)
+}
+
 // API functions with enhanced error handling
 const loadUsers = async () => {
   loading.value = true
@@ -522,7 +620,7 @@ const loadUsers = async () => {
     }
 
   } catch (err) {
-    error.value = handleError(err)
+    error.value = handleUserError(err, 'loadUsers')
   } finally {
     loading.value = false
   }
@@ -538,9 +636,10 @@ const loadRoles = async () => {
   }
 }
 
-// Modal handlers
+// ✅ SAFETY: Enhanced modal handlers with null safety
 const closeCreateModal = () => {
   showCreateModal.value = false
+  // Don't clear selectedUser here as it might be used by other modals
 }
 
 const closeEditModal = () => {
@@ -563,32 +662,83 @@ const handlePasswordChanged = () => {
 }
 
 const viewUser = (user) => {
+  if (!user || !user.user_id) return
+  
+  // Close any conflicting modals
+  showCreateModal.value = false
+  showEditModal.value = false
+  showPasswordModal.value = false
+  showDeleteModal.value = false
+  showStatusModal.value = false
+  
   selectedUser.value = { ...user }
   showViewModal.value = true
 }
 
 const editUser = (user) => {
+  if (!user || !user.user_id) return
+  
+  // Close any conflicting modals
+  showCreateModal.value = false
+  showViewModal.value = false
+  showPasswordModal.value = false
+  showDeleteModal.value = false
+  showStatusModal.value = false
+  
   selectedUser.value = { ...user }
   showEditModal.value = true
 }
 
 const changePassword = (user) => {
+  if (!user || !user.user_id) return
+  
+  // Close any conflicting modals
+  showCreateModal.value = false
+  showEditModal.value = false
+  showViewModal.value = false
+  showDeleteModal.value = false
+  showStatusModal.value = false
+  
   selectedUser.value = { ...user }
   showPasswordModal.value = true
 }
 
 const deleteUser = (user) => {
+  if (!user || !user.user_id) return
+  
+  // Close any conflicting modals
+  showCreateModal.value = false
+  showEditModal.value = false
+  showViewModal.value = false
+  showPasswordModal.value = false
+  showStatusModal.value = false
+  
   selectedUser.value = { ...user }
   showDeleteModal.value = true
 }
 
 const toggleUserStatus = (user) => {
+  if (!user || !user.user_id) return
+  
+  // Close any conflicting modals
+  showCreateModal.value = false
+  showEditModal.value = false
+  showViewModal.value = false
+  showPasswordModal.value = false
+  showDeleteModal.value = false
+  
   selectedUser.value = { ...user }
   statusAction.value = user.active ? 'deactivate' : 'activate'
   showStatusModal.value = true
 }
 
+// ✅ SAFETY: Enhanced deletion with error handling
 const confirmDelete = async () => {
+  if (!selectedUser.value?.user_id) {
+    handleUserError(new Error('No user selected for deletion'), 'confirmDelete')
+    return
+  }
+
   deleteLoading.value = true
 
   try {
@@ -597,14 +747,19 @@ const confirmDelete = async () => {
     showDeleteModal.value = false
     selectedUser.value = null
   } catch (err) {
-    const errorMessage = handleError(err)
-    alert('Failed to delete user: ' + errorMessage)
+    handleUserError(err, 'confirmDelete')
   } finally {
     deleteLoading.value = false
   }
 }
 
+// ✅ SAFETY: Enhanced status change with error handling
 const confirmStatusChange = async () => {
+  if (!selectedUser.value?.user_id || !statusAction.value) {
+    handleUserError(new Error('Invalid user or status action'), 'confirmStatusChange')
+    return
+  }
+
   statusLoading.value = true
 
   try {
@@ -616,8 +771,7 @@ const confirmStatusChange = async () => {
     selectedUser.value = null
     statusAction.value = ''
   } catch (err) {
-    const errorMessage = handleError(err)
-    alert(`Failed to ${statusAction.value} user: ` + errorMessage)
+    handleUserError(err, 'confirmStatusChange')
   } finally {
     statusLoading.value = false
   }

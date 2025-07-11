@@ -171,13 +171,14 @@
     <div v-if="activeTab === 'users'">
       <RoleUsersList
         :roles="roles"
+        :hide-stats="true"
         @user-updated="handleUserUpdated"
         @role-changed="handleRoleChanged"
         @users-loaded="handleUsersLoaded"
       />
     </div>
 
-    <!-- ✅ FIXED: Modals with proper state management and safety checks -->
+    <!-- ✅ SAFETY: Modals with proper state management and safety checks -->
     <RoleFormModal
       v-if="canShowCreateModal"
       key="create-role-modal"
@@ -197,9 +198,9 @@
       @saved="handleRoleSaved"
     />
 
-    <!-- View Role Modal -->
+    <!-- ✅ SAFETY: View Role Modal with safe computed -->
     <BaseModal
-      :open="showViewModal && !!selectedRole"
+      :open="canShowViewModal"
       title="Role Details"
       size="large"
       @close="showViewModal = false"
@@ -350,17 +351,50 @@ const showDeleteModal = ref(false)
 const selectedRole = ref(null)
 const isCloning = ref(false)
 
-// ✅ FIXED: Safety computed properties to prevent null access
+// ✅ SAFETY: Computed properties to prevent null access
 const safeSelectedRole = computed(() => {
   return selectedRole.value || {}
 })
 
 const canShowEditModal = computed(() => {
-  return showEditModal.value && selectedRole.value && selectedRole.value.role_id
+  return !!(showEditModal.value && selectedRole.value && selectedRole.value.role_id)
 })
 
 const canShowCreateModal = computed(() => {
-  return showCreateModal.value && !showEditModal.value
+  return !!(showCreateModal.value && !showEditModal.value)
+})
+
+const canShowViewModal = computed(() => {
+  return !!(showViewModal.value && selectedRole.value && selectedRole.value.role_id)
+})
+
+// ✅ SAFETY: Watch for conflicting modal states and resolve them
+watch([showCreateModal, showEditModal, showViewModal, showDeleteModal], ([create, edit, view, deleteModal]) => {
+  // Ensure only one modal is open at a time
+  if (create && (edit || view || deleteModal)) {
+    showEditModal.value = false
+    showViewModal.value = false
+    showDeleteModal.value = false
+  }
+  if (edit && (view || deleteModal)) {
+    showViewModal.value = false
+    showDeleteModal.value = false
+  }
+  if (view && deleteModal) {
+    showDeleteModal.value = false
+  }
+})
+
+// ✅ SAFETY: Clear selection when modals close
+watch(showEditModal, (newValue) => {
+  if (!newValue) {
+    setTimeout(() => {
+      if (!showCreateModal.value && !showViewModal.value && !showDeleteModal.value) {
+        selectedRole.value = null
+        isCloning.value = false
+      }
+    }, 100)
+  }
 })
 
 // ✅ CONSOLIDATED: Define table columns for DataTable
@@ -488,35 +522,6 @@ const availableRolesForReassignment = computed(() => {
   )
 })
 
-// ✅ FIXED: Watch for conflicting modal states and resolve them
-watch([showCreateModal, showEditModal, showViewModal, showDeleteModal], ([create, edit, view, deleteModal]) => {
-  // Ensure only one modal is open at a time
-  if (create && (edit || view || deleteModal)) {
-    showEditModal.value = false
-    showViewModal.value = false
-    showDeleteModal.value = false
-  }
-  if (edit && (view || deleteModal)) {
-    showViewModal.value = false
-    showDeleteModal.value = false
-  }
-  if (view && deleteModal) {
-    showDeleteModal.value = false
-  }
-})
-
-// ✅ FIXED: Clear selection when modals close
-watch(showEditModal, (newValue) => {
-  if (!newValue) {
-    setTimeout(() => {
-      if (!showCreateModal.value && !showViewModal.value && !showDeleteModal.value) {
-        selectedRole.value = null
-        isCloning.value = false
-      }
-    }, 100)
-  }
-})
-
 // Helper function to get resource label using centralized permissions
 const getResourceLabel = (resourceName) => {
   const resource = getResource(resourceName)
@@ -527,6 +532,19 @@ const getResourceLabel = (resourceName) => {
 const clearFilters = () => {
   statusFilter.value = ''
   typeFilter.value = ''
+}
+
+// ✅ SAFETY: Enhanced error handling with recovery
+const handleRoleError = (error, context = '') => {
+  console.error(`Role management error ${context}:`, error)
+  
+  // Reset modal states on error
+  showCreateModal.value = false
+  showEditModal.value = false
+  selectedRole.value = null
+  isCloning.value = false
+  
+  return handleError(error)
 }
 
 // API functions
@@ -570,7 +588,7 @@ const loadRoles = async () => {
 
   } catch (err) {
     console.error('Error loading roles:', err)
-    error.value = handleError(err)
+    error.value = handleRoleError(err, 'loadRoles')
     roles.value = []
     roleStats.value = { total: 0, active: 0, inactive: 0, system: 0 }
     userStats.value = { total: 0, active: 0, inactive: 0 }
@@ -579,7 +597,7 @@ const loadRoles = async () => {
   }
 }
 
-// ✅ FIXED: Modal handlers with enhanced safety
+// ✅ SAFETY: Enhanced modal handlers with null safety
 const closeCreateModal = () => {
   showCreateModal.value = false
   selectedRole.value = null
@@ -633,7 +651,7 @@ const handleUsersReassigned = async () => {
   await loadRoles()
 }
 
-// ✅ FIXED: Role actions with null safety
+// ✅ SAFETY: Role actions with null safety
 const viewRole = (role) => {
   if (!role) return
   selectedRole.value = { ...role }
@@ -694,7 +712,7 @@ const toggleRoleStatus = async (role) => {
     await loadRoles()
   } catch (err) {
     console.error(`Error ${action}ing role:`, err)
-    error.value = handleError(err)
+    error.value = handleRoleError(err, 'toggleRoleStatus')
   }
 }
 
