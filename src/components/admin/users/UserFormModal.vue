@@ -10,7 +10,7 @@
     @close="$emit('close')"
     @saved="handleSaved"
   >
-    <template #default="{ form, errors, isEditing, isFormValid, updateField }">
+    <template #default="{ form, errors, isEditing, isFormValid, updateField, clearError }">
       <div class="space-y-4">
         <!-- Server Error Display -->
         <div v-if="serverError" class="p-3 bg-red-50 border border-red-200 rounded-md">
@@ -34,7 +34,8 @@
 
         <!-- Username -->
         <FormField
-          v-model="form.username"
+          :model-value="form.username"
+          @update:model-value="updateField('username', $event)"
           type="text"
           label="Username"
           placeholder="Enter username"
@@ -45,7 +46,8 @@
 
         <!-- Email -->
         <FormField
-          v-model="form.email"
+          :model-value="form.email"
+          @update:model-value="updateField('email', $event)"
           type="email"
           label="Email"
           placeholder="user@example.com"
@@ -56,14 +58,16 @@
         <!-- Name Fields -->
         <div class="grid grid-cols-2 gap-4">
           <FormField
-            v-model="form.first_name"
+            :model-value="form.first_name"
+            @update:model-value="updateField('first_name', $event)"
             type="text"
             label="First Name"
             placeholder="First name"
             :error="errors.first_name"
           />
           <FormField
-            v-model="form.last_name"
+            :model-value="form.last_name"
+            @update:model-value="updateField('last_name', $event)"
             type="text"
             label="Last Name"
             placeholder="Last name"
@@ -73,7 +77,8 @@
 
         <!-- Role Selection -->
         <FormField
-          v-model="form.role_id"
+          :model-value="form.role_id"
+          @update:model-value="updateField('role_id', $event)"
           type="select"
           label="Role"
           placeholder="Select a role"
@@ -88,7 +93,8 @@
         <!-- Password (only for new users) -->
         <div v-if="!isEditing">
           <FormField
-            v-model="form.password"
+            :model-value="form.password"
+            @update:model-value="updateField('password', $event)"
             type="password"
             label="Password"
             placeholder="Enter password (optional)"
@@ -136,7 +142,8 @@
 
         <!-- Active Status -->
         <FormField
-          v-model="form.active"
+          :model-value="form.active"
+          @update:model-value="updateField('active', $event)"
           type="checkbox"
           label="Active user"
           help="Inactive users cannot log in to the system"

@@ -28,16 +28,6 @@
     </div>
 
     <div class="p-6">
-      <!-- User Statistics -->
-      <div v-if="!selectedRole" class="mb-6">
-        <StatsGrid :stats="userStatsFormatted" />
-      </div>
-
-      <!-- Role-specific Statistics -->
-      <div v-else-if="selectedRole && roleStats" class="mb-6">
-        <StatsGrid :stats="roleStatsFormatted" />
-      </div>
-
       <!-- Bulk Actions -->
       <div v-if="selectedUsers.length > 0" class="mb-6 bg-blue-50 border border-blue-200 p-4 rounded-lg">
         <div class="flex items-center justify-between">
@@ -268,7 +258,6 @@ import api from '@/services/api'
 
 // ✅ CONSOLIDATED: Import reusable components
 import ActionIcon from '@/components/icons/ActionIcons.vue'
-import StatsGrid from '@/components/ui/StatsGrid.vue'
 import DataTable from '@/components/tables/DataTable.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/forms/FormField.vue'
@@ -362,25 +351,6 @@ const roleOptions = computed(() => {
     value: role.role_id.toString(),
     label: `${role.name} - ${role.description || 'No description'}`
   }))
-})
-
-const userStatsFormatted = computed(() => {
-  const total = users.value.length
-  const active = users.value.filter(user => user.active).length
-  const inactive = total - active
-  const recentLogins = users.value.filter(user => {
-    if (!user.last_login) return false
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    return new Date(user.last_login) > sevenDaysAgo
-  }).length
-
-  return [
-    { title: 'Total Users', value: total, icon: 'users', color: 'blue' },
-    { title: 'Active Users', value: active, icon: 'success', color: 'green' },
-    { title: 'Inactive Users', value: inactive, icon: 'warning', color: 'yellow' },
-    { title: 'Recent Logins', value: recentLogins, icon: 'clock', color: 'purple' }
-  ]
 })
 
 const roleStatsFormatted = computed(() => {

@@ -14,7 +14,15 @@
     </template>
 
     <form @submit.prevent="handleSubmit">
-      <slot :form="form" :errors="errors" :isEditing="isEditing" :isFormValid="isFormValid" />
+      <slot 
+        :form="form" 
+        :errors="errors" 
+        :isEditing="isEditing" 
+        :isFormValid="isFormValid" 
+        :updateField="updateField"
+        :validateField="validateField"
+        :clearError="clearError"
+      />
     </form>
 
     <template #footer>
@@ -89,7 +97,7 @@ const error = ref('')
 const form = ref({})
 const errors = ref({})
 const fieldInteracted = ref({}) // Track interaction per field
-const validationAttempted = ref(false) // NEW: Track if user has tried to submit
+const validationAttempted = ref(false) // Track if user has tried to submit
 
 // Enhanced edit mode detection
 const isEditing = computed(() => {
@@ -130,6 +138,30 @@ const isFormValid = computed(() => {
   })
   return !hasErrors && hasRequiredFields
 })
+
+// ✅ FIX: Add the missing updateField function
+const updateField = (fieldName, value) => {
+  // Update the form value
+  form.value[fieldName] = value
+  
+  // Mark field as interacted
+  fieldInteracted.value[fieldName] = true
+  
+  // Clear any existing error for this field
+  if (errors.value[fieldName]) {
+    errors.value[fieldName] = ''
+  }
+  
+  // Validate if enabled
+  if (props.validateOnChange) {
+    validateField(fieldName, value, false)
+  }
+}
+
+// Helper to clear specific error
+const clearError = (fieldName) => {
+  errors.value[fieldName] = ''
+}
 
 // ENHANCED: Validation that shows errors immediately when user interacts OR after first submit attempt
 const validateField = (key, value, immediate = false) => {
@@ -202,7 +234,7 @@ const validateField = (key, value, immediate = false) => {
 const validateForm = () => {
   // ENHANCED: Mark that validation has been attempted
   validationAttempted.value = true
-  
+
   // Force mark all fields as interacted when validating full form (on submit)
   Object.keys(props.validationRules).forEach(key => {
     fieldInteracted.value[key] = true
@@ -220,7 +252,7 @@ const handleSubmit = async () => {
   if (!validateForm()) {
     // ENHANCED: Show general error message when validation fails
     error.value = 'Please fix the validation errors above before submitting.'
-    
+
     // Focus on first field with error
     const firstErrorField = Object.keys(errors.value).find(key => errors.value[key])
     if (firstErrorField) {
@@ -233,7 +265,7 @@ const handleSubmit = async () => {
         }
       }, 100)
     }
-    
+
     return
   }
 
@@ -307,47 +339,18 @@ const initializeForm = () => {
   errors.value = {}
 }
 
-// FIXED: Proper tracking of field changes with manual comparison
-const previousFormValues = ref({})
-
-// Watch individual form fields instead of the whole form object
-const setupFieldWatchers = () => {
-  // Watch each field individually to avoid reactivity issues
-  Object.keys(props.validationRules).forEach(fieldKey => {
-    watch(() => form.value[fieldKey], (newValue, oldValue) => {
-      if (!props.validateOnChange) return
-
-      // Skip initial setup where oldValue is undefined
-      if (oldValue === undefined) {
-        return
-      }
-
-      // Mark field as interacted immediately
-      fieldInteracted.value[fieldKey] = true
-
-      // Validate immediately
-      if (props.validationRules[fieldKey]) {
-        validateField(fieldKey, newValue, false)
-      }
-    }, { immediate: false })
-  })
-}
-
 // Initialize form when modal opens or initial data changes
 watch([() => props.open, () => props.initialData], () => {
   if (props.open) {
     fieldInteracted.value = {} // Reset field-level interaction tracking
     validationAttempted.value = false // Reset validation attempt tracking
     initializeForm()
-    // Setup field watchers after form is initialized
-    setupFieldWatchers()
   }
 }, { immediate: true })
 
 onMounted(() => {
   if (props.open) {
     initializeForm()
-    setupFieldWatchers()
   }
 })
 
@@ -357,6 +360,8 @@ defineExpose({
   errors,
   validateForm,
   resetForm,
-  isFormValid
+  isFormValid,
+  updateField,
+  validateField
 })
 </script>
