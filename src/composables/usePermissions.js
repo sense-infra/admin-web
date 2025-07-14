@@ -524,45 +524,70 @@ export function usePermissions() {
 }
 
 /**
- * Simplified hook for API Key forms
+ * Updated useAPIKeyPermissions function with validation
+ * Replace the existing function with this version
  */
 export function useAPIKeyPermissions() {
   const { getAPIKeyResources } = usePermissions()
-  
+
+  // Get the full resource list for API keys
   const availableResources = ref(getAPIKeyResources())
-  
+
   // Helper methods for form handling
   const hasPermission = (permissions, resource, action) => {
-    return permissions[resource]?.includes(action) || false
+    if (!permissions || typeof permissions !== 'object') {
+      return false
+    }
+    
+    const resourcePerms = permissions[resource]
+    if (!resourcePerms) {
+      return false
+    }
+
+    if (Array.isArray(resourcePerms)) {
+      return resourcePerms.includes(action)
+    }
+
+    return resourcePerms === action || resourcePerms === true
   }
-  
+
   const togglePermission = (permissions, resource, action, checked) => {
     if (!permissions[resource]) {
       permissions[resource] = []
     }
 
-    if (checked) {
-      if (!permissions[resource].includes(action)) {
+    if (Array.isArray(permissions[resource])) {
+      const index = permissions[resource].indexOf(action)
+      if (checked && index === -1) {
         permissions[resource].push(action)
+      } else if (!checked && index > -1) {
+        permissions[resource].splice(index, 1)
+      }
+
+      // Clean up empty arrays
+      if (permissions[resource].length === 0) {
+        delete permissions[resource]
       }
     } else {
-      permissions[resource] = permissions[resource].filter(a => a !== action)
-      if (permissions[resource].length === 0) {
+      // Handle non-array format
+      if (checked) {
+        permissions[resource] = [action]
+      } else {
         delete permissions[resource]
       }
     }
   }
-  
+
   const clearAllPermissions = (permissions) => {
     Object.keys(permissions).forEach(key => delete permissions[key])
   }
-  
+
   const setAllPermissions = (permissions) => {
     availableResources.value.forEach(resource => {
       permissions[resource.name] = resource.actions.map(action => action.name)
     })
   }
-  
+
   const hasAllPermissions = (permissions) => {
     return availableResources.value.every(resource =>
       resource.actions.every(action =>
@@ -570,14 +595,39 @@ export function useAPIKeyPermissions() {
       )
     )
   }
-  
+
+  // Add validation helper that matches the FormModal expectations
+  const validatePermissions = (permissions) => {
+    const errors = []
+
+    if (!permissions || typeof permissions !== 'object') {
+      errors.push('Permissions must be an object')
+      return { isValid: false, errors }
+    }
+
+    const hasAnyPermission = Object.keys(permissions).some(resource => {
+      const actions = permissions[resource]
+      return Array.isArray(actions) ? actions.length > 0 : !!actions
+    })
+
+    if (!hasAnyPermission) {
+      errors.push('At least one permission must be selected')
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    }
+  }
+
   return {
     availableResources,
     hasPermission,
     togglePermission,
     clearAllPermissions,
     setAllPermissions,
-    hasAllPermissions
+    hasAllPermissions,
+    validatePermissions
   }
 }
 

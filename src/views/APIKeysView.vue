@@ -1,952 +1,798 @@
 <template>
-  <div class="space-y-6">
+  <div>
     <!-- Header -->
-    <div class="flex justify-between items-center">
-      <div>
-        <h1 class="text-2xl font-bold text-gray-900">API Key Management</h1>
-        <p class="text-gray-600">Manage API keys for external system access</p>
-      </div>
-      <button
-        v-if="hasPermission('api_keys', 'create')"
-        @click="showCreateModal = true"
-        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-        </svg>
-        Create API Key
-      </button>
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">API Key Management</h1>
+      <p class="text-gray-600">Manage API keys for external system access</p>
     </div>
 
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v-2H7v-2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"/>
-            </svg>
-          </div>
-          <div class="ml-5 w-0 flex-1">
-            <dl>
-              <dt class="text-sm font-medium text-gray-500 truncate">Total Keys</dt>
-              <dd class="text-lg font-medium text-gray-900">{{ apiKeyStats.total }}</dd>
-            </dl>
-          </div>
-        </div>
-      </div>
+    <!-- ✅ CONSOLIDATED: Stats Grid using reusable component -->
+    <StatsGrid :stats="apiKeyStatsFormatted" />
 
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <div class="ml-5 w-0 flex-1">
-            <dl>
-              <dt class="text-sm font-medium text-gray-500 truncate">Active Keys</dt>
-              <dd class="text-lg font-medium text-gray-900">{{ apiKeyStats.active }}</dd>
-            </dl>
-          </div>
-        </div>
-      </div>
+    <!-- ✅ CONSOLIDATED: Filter Bar (Search handled by DataTable) -->
+    <div class="card mb-6">
+      <div class="p-6">
+        <div class="flex flex-col md:flex-row gap-4">
+          <!-- Filter Controls -->
+          <div class="flex gap-2">
+            <!-- Status Filter -->
+            <select
+              v-model="statusFilter"
+              class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="expired">Expired</option>
+              <option value="expiring">Expiring Soon</option>
+            </select>
 
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
+            <!-- Usage Filter -->
+            <select
+              v-model="usageFilter"
+              class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Keys</option>
+              <option value="used">Recently Used</option>
+              <option value="unused">Never Used</option>
+            </select>
           </div>
-          <div class="ml-5 w-0 flex-1">
-            <dl>
-              <dt class="text-sm font-medium text-gray-500 truncate">Expiring Soon</dt>
-              <dd class="text-lg font-medium text-gray-900">{{ apiKeyStats.expiring }}</dd>
-            </dl>
-          </div>
-        </div>
-      </div>
 
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-          </div>
-          <div class="ml-5 w-0 flex-1">
-            <dl>
-              <dt class="text-sm font-medium text-gray-500 truncate">Total Usage</dt>
-              <dd class="text-lg font-medium text-gray-900">{{ apiKeyUtils.formatNumber(apiKeyStats.totalUsage) }}</dd>
-            </dl>
+          <!-- Action Buttons -->
+          <div class="flex gap-2 ml-auto">
+            <button @click="clearFilters" class="btn btn-outline">
+              <ActionIcon name="clear" size="xs" class="mr-1" />
+              Clear Filters
+            </button>
+            <button @click="loadAPIKeys" class="btn btn-outline">
+              <ActionIcon name="refresh" size="xs" class="mr-1" />
+              Refresh
+            </button>
+            <button
+              v-if="canManageAPIKeys"
+              @click="showCreateModal = true"
+              class="btn btn-primary"
+            >
+              <ActionIcon name="add" size="xs" class="mr-1" />
+              Create API Key
+            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- API Keys Table -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-medium text-gray-900">API Keys</h2>
-      </div>
+    <!-- ✅ CONSOLIDATED: API Keys Table using DataTable component -->
+    <DataTable
+      :items="filteredAPIKeys"
+      :columns="apiKeyColumns"
+      :loading="loading"
+      :error="error"
+      title="API Keys"
+      :searchable="true"
+      search-placeholder="Search API keys by name, description, or prefix..."
+      :search-columns="['key_name', 'description', 'key_prefix', 'display_name']"
+      :paginated="true"
+      :initial-page-size="25"
+      :sortable="true"
+      :initial-sort="{ column: 'created_at', direction: 'desc' }"
+      :clickable-rows="true"
+      :show-refresh="true"
+      empty-state-title="No API keys found"
+      :empty-state-message="statusFilter || usageFilter ? 'No API keys match your filter criteria' : 'Click \'Create API Key\' to create your first API key'"
+      @refresh="loadAPIKeys"
+      @row-click="viewAPIKey"
+    >
+      <!-- Custom cell renderers -->
+      <template #cell-display_name="{ item }">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 h-10 w-10">
+            <div class="h-10 w-10 rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-center">
+              <ActionIcon name="key" size="sm" class="text-white" />
+            </div>
+          </div>
+          <div class="ml-4">
+            <div class="text-sm font-medium text-gray-900">
+              {{ item.key_name }}
+            </div>
+            <div class="text-sm text-gray-500">
+              {{ item.description || 'No description' }}
+            </div>
+            <div class="text-xs text-gray-400">
+              by {{ item.created_by_user?.username || 'Unknown' }}
+            </div>
+          </div>
+        </div>
+      </template>
 
-      <div v-if="loading" class="p-8 text-center">
-        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p class="mt-2 text-gray-600">Loading API keys...</p>
-      </div>
+      <template #cell-key_prefix="{ item }">
+        <code class="text-sm bg-gray-100 px-2 py-1 rounded font-mono">
+          {{ item.key_prefix }}...
+        </code>
+      </template>
 
-      <div v-else-if="error" class="p-8 text-center text-red-600">
-        <p>{{ error }}</p>
-        <button @click="loadAPIKeys" class="mt-2 text-blue-600 hover:text-blue-800">
-          Try Again
-        </button>
-      </div>
+      <template #cell-status="{ item }">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+              :class="apiKeyUtils.getStatusColor(item)">
+          <ActionIcon
+            :name="getStatusIcon(item)"
+            size="xs"
+            :class="getStatusIconColor(item) + ' mr-1'"
+          />
+          {{ apiKeyUtils.getStatus(item) }}
+        </span>
+      </template>
 
-      <div v-else class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Key Name
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Prefix
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Usage
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Rate Limit
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Used
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Created
-              </th>
-              <th class="relative px-6 py-3">
-                <span class="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="apiKey in apiKeys" :key="apiKey.api_key_id" class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div>
-                  <div class="text-sm font-medium text-gray-900">{{ apiKey.key_name }}</div>
-                  <div class="text-sm text-gray-500">{{ apiKey.description }}</div>
-                  <div class="text-xs text-gray-400">by {{ apiKey.created_by_user?.username || 'Unknown' }}</div>
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <code class="text-sm bg-gray-100 px-2 py-1 rounded">{{ apiKey.key_prefix }}...</code>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                      :class="apiKeyUtils.getStatusColor(apiKey)">
-                  {{ apiKeyUtils.getStatus(apiKey) }}
+      <template #cell-usage="{ item }">
+        <div>
+          <div class="text-sm font-medium text-gray-900">
+            {{ apiKeyUtils.formatNumber(item.usage_count || 0) }} requests
+          </div>
+          <div class="text-xs text-gray-500">
+            Total usage
+          </div>
+        </div>
+      </template>
+
+      <template #cell-rate_limit="{ item }">
+        <div class="text-sm text-gray-900">
+          {{ apiKeyUtils.formatNumber(item.rate_limit_per_hour || 0) }}/hour
+        </div>
+      </template>
+
+      <template #cell-last_used="{ item }">
+        <span class="text-sm text-gray-500">
+          {{ formatDate(item.last_used) }}
+        </span>
+      </template>
+
+      <template #cell-created_at="{ item }">
+        <span class="text-sm text-gray-500">
+          {{ formatDate(item.created_at) }}
+        </span>
+      </template>
+
+      <template #cell-actions="{ item }">
+        <APIKeyActionButtons
+          :api-key="item"
+          :can-manage="canManageAPIKeys"
+          @view="viewAPIKey"
+          @usage="viewUsage"
+          @edit="editAPIKey"
+          @toggle="toggleAPIKeyStatus"
+          @delete="deleteAPIKey"
+        />
+      </template>
+    </DataTable>
+
+    <!-- FIXED: Create API Key Modal with allApiKeys prop -->
+    <APIKeyFormModal
+      v-if="showCreateModal"
+      :show-modal="showCreateModal"
+      :all-api-keys="apiKeys"
+      @close="closeCreateModal"
+      @saved="handleAPIKeySaved"
+    />
+
+    <!-- FIXED: Edit API Key Modal with allApiKeys prop -->
+    <APIKeyFormModal
+      v-if="showEditModal && selectedAPIKey"
+      :show-modal="showEditModal"
+      :api-key="selectedAPIKey"
+      :all-api-keys="apiKeys"
+      @close="closeEditModal"
+      @saved="handleAPIKeySaved"
+    />
+
+    <!-- View API Key Modal -->
+    <BaseModal
+      :open="showViewModal"
+      title="API Key Details"
+      size="large"
+      @close="closeViewModal"
+    >
+      <div v-if="selectedAPIKey" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h4 class="font-medium text-gray-900 mb-3">Basic Information</h4>
+            <div class="space-y-2 text-sm">
+              <div><strong>Name:</strong> {{ selectedAPIKey.key_name }}</div>
+              <div><strong>Description:</strong> {{ selectedAPIKey.description || 'No description' }}</div>
+              <div><strong>Key Prefix:</strong>
+                <code class="bg-gray-100 px-2 py-1 rounded text-xs">{{ selectedAPIKey.key_prefix }}...</code>
+              </div>
+              <div><strong>Status:</strong>
+                <span :class="apiKeyUtils.getStatusColor(selectedAPIKey)" class="inline-flex items-center px-2 py-1 rounded text-xs font-medium ml-1">
+                  <ActionIcon
+                    :name="getStatusIcon(selectedAPIKey)"
+                    size="xs"
+                    :class="getStatusIconColor(selectedAPIKey) + ' mr-1'"
+                  />
+                  {{ apiKeyUtils.getStatus(selectedAPIKey) }}
                 </span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div>{{ apiKeyUtils.formatNumber(apiKey.usage_count || 0) }} requests</div>
-                <div class="text-xs text-gray-400">Total usage</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ apiKeyUtils.formatNumber(apiKey.rate_limit_per_hour || 0) }}/hour
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ apiKeyUtils.formatDate(apiKey.last_used) }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ apiKeyUtils.formatDate(apiKey.created_at) }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <div class="flex items-center gap-2">
-                  <button
-                    @click="viewUsage(apiKey)"
-                    class="text-green-600 hover:text-green-900"
-                    title="View Usage"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                    </svg>
-                  </button>
-                  <button
-                    v-if="hasPermission('api_keys', 'update')"
-                    @click="editAPIKey(apiKey)"
-                    class="text-blue-600 hover:text-blue-900"
-                    title="Edit API Key"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                    </svg>
-                  </button>
-                  <button
-                    v-if="hasPermission('api_keys', 'update')"
-                    @click="toggleAPIKeyStatus(apiKey)"
-                    :class="apiKey.active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'"
-                    :title="apiKey.active ? 'Deactivate API Key' : 'Activate API Key'"
-                  >
-                    <svg v-if="apiKey.active" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728"/>
-                    </svg>
-                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                  </button>
-                  <button
-                    v-if="hasPermission('api_keys', 'delete')"
-                    @click="deleteAPIKey(apiKey)"
-                    class="text-red-600 hover:text-red-900"
-                    title="Delete API Key"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div v-if="apiKeys.length === 0" class="p-8 text-center text-gray-500">
-          <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v-2H7v-2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"/>
-          </svg>
-          <p class="mt-2">No API keys found</p>
-          <p class="text-sm text-gray-400">Click "Create API Key" to create your first API key</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Create API Key Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-        <form @submit.prevent="handleCreateAPIKey">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-medium text-gray-900">Create API Key</h3>
-            <button
-              type="button"
-              @click="closeCreateModal"
-              class="text-gray-400 hover:text-gray-600"
-            >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-
-          <div v-if="createError" class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {{ createError }}
-          </div>
-
-          <div class="space-y-6">
-            <!-- Basic Information -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label for="keyName" class="block text-sm font-medium text-gray-700 mb-1">
-                  API Key Name *
-                </label>
-                <input
-                  id="keyName"
-                  v-model="createForm.key_name"
-                  type="text"
-                  required
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., Production API Key"
-                />
-              </div>
-
-              <div>
-                <label for="rateLimit" class="block text-sm font-medium text-gray-700 mb-1">
-                  Rate Limit (requests per hour)
-                </label>
-                <input
-                  id="rateLimit"
-                  v-model.number="createForm.rate_limit_per_hour"
-                  type="number"
-                  min="1"
-                  max="10000"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="1000"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <textarea
-                id="description"
-                v-model="createForm.description"
-                rows="3"
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Optional description..."
-              ></textarea>
-            </div>
-
-            <!-- Permissions Section using centralized data -->
-            <div>
-              <h4 class="text-sm font-medium text-gray-700 mb-3">Permissions *</h4>
-              <div class="space-y-4 bg-gray-50 p-4 rounded-lg">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div v-for="resource in apiKeyResources" :key="resource.name" class="border rounded p-3 bg-white">
-                    <div class="flex items-center mb-2">
-                      <component :is="getResourceIcon(resource.icon)" :class="resource.color" class="w-5 h-5 mr-2" />
-                      <h5 class="font-medium text-gray-900">{{ resource.label }}</h5>
-                    </div>
-                    <p class="text-xs text-gray-500 mb-3">{{ resource.description }}</p>
-                    <div class="space-y-2">
-                      <label
-                        v-for="action in resource.actions"
-                        :key="action.name"
-                        class="flex items-center space-x-2 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          :checked="createPermissions.hasPermission(resource.name, action.name)"
-                          @change="createPermissions.togglePermission(resource.name, action.name, $event.target.checked)"
-                          class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span :class="action.color">{{ action.label }}</span>
-                        <span v-if="action.risk" :class="getRiskBadgeClass(action.risk)" class="text-xs px-1.5 py-0.5 rounded-full">
-                          {{ action.risk }}
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Expiration Date -->
-            <div>
-              <label class="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  v-model="hasExpirationDate"
-                  class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span class="text-sm font-medium text-gray-700">Set expiration date</span>
-              </label>
-              <div v-if="hasExpirationDate" class="mt-2">
-                <input
-                  type="datetime-local"
-                  v-model="expirationDate"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                />
               </div>
             </div>
           </div>
 
-          <div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              @click="closeCreateModal"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              :disabled="createLoading || !isFormValid"
-              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
-            >
-              {{ createLoading ? 'Creating...' : 'Create API Key' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Edit API Key Modal -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-        <form @submit.prevent="handleUpdateAPIKey">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-medium text-gray-900">Edit API Key</h3>
-            <button
-              type="button"
-              @click="closeEditModal"
-              class="text-gray-400 hover:text-gray-600"
-            >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-
-          <div v-if="editError" class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {{ editError }}
-          </div>
-
-          <div class="space-y-6">
-            <!-- Basic Information -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label for="editKeyName" class="block text-sm font-medium text-gray-700 mb-1">
-                  API Key Name *
-                </label>
-                <input
-                  id="editKeyName"
-                  v-model="editForm.key_name"
-                  type="text"
-                  required
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label for="editRateLimit" class="block text-sm font-medium text-gray-700 mb-1">
-                  Rate Limit (requests per hour)
-                </label>
-                <input
-                  id="editRateLimit"
-                  v-model.number="editForm.rate_limit_per_hour"
-                  type="number"
-                  min="1"
-                  max="10000"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label for="editDescription" class="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <textarea
-                id="editDescription"
-                v-model="editForm.description"
-                rows="3"
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-              ></textarea>
-            </div>
-
-            <!-- Status -->
-            <div>
-              <label class="flex items-center space-x-2">
-                <input
-                  v-model="editForm.active"
-                  type="checkbox"
-                  class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                />
-                <span class="text-sm text-gray-700">Active</span>
-              </label>
-            </div>
-
-            <!-- Permissions Section using centralized data -->
-            <div>
-              <h4 class="text-sm font-medium text-gray-700 mb-3">Permissions *</h4>
-              <div class="space-y-4 bg-gray-50 p-4 rounded-lg">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div v-for="resource in apiKeyResources" :key="resource.name" class="border rounded p-3 bg-white">
-                    <div class="flex items-center mb-2">
-                      <component :is="getResourceIcon(resource.icon)" :class="resource.color" class="w-5 h-5 mr-2" />
-                      <h5 class="font-medium text-gray-900">{{ resource.label }}</h5>
-                    </div>
-                    <p class="text-xs text-gray-500 mb-3">{{ resource.description }}</p>
-                    <div class="space-y-2">
-                      <label
-                        v-for="action in resource.actions"
-                        :key="action.name"
-                        class="flex items-center space-x-2 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          :checked="editPermissions.hasPermission(resource.name, action.name)"
-                          @change="editPermissions.togglePermission(resource.name, action.name, $event.target.checked)"
-                          class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span :class="action.color">{{ action.label }}</span>
-                        <span v-if="action.risk" :class="getRiskBadgeClass(action.risk)" class="text-xs px-1.5 py-0.5 rounded-full">
-                          {{ action.risk }}
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Expiration Date -->
-            <div>
-              <label class="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  v-model="editHasExpirationDate"
-                  class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span class="text-sm font-medium text-gray-700">Set expiration date</span>
-              </label>
-              <div v-if="editHasExpirationDate" class="mt-2">
-                <input
-                  type="datetime-local"
-                  v-model="editExpirationDate"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              @click="closeEditModal"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              :disabled="editLoading || !isEditFormValid"
-              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
-            >
-              {{ editLoading ? 'Updating...' : 'Update API Key' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Usage Modal -->
-    <div v-if="showUsageModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-10 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">API Key Usage</h3>
-          <button
-            type="button"
-            @click="showUsageModal = false"
-            class="text-gray-400 hover:text-gray-600"
-          >
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-
-        <div v-if="usageData">
-          <div class="space-y-4">
-            <div>
-              <h4 class="font-medium text-gray-900">{{ selectedAPIKey?.key_name }}</h4>
-              <p class="text-sm text-gray-500">{{ selectedAPIKey?.description }}</p>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <div class="bg-gray-50 p-4 rounded-lg">
-                <div class="text-2xl font-bold text-gray-900">{{ apiKeyUtils.formatNumber(usageData.total_requests || 0) }}</div>
-                <div class="text-sm text-gray-500">Total Requests</div>
-              </div>
-              <div class="bg-gray-50 p-4 rounded-lg">
-                <div class="text-sm font-medium text-gray-900">{{ apiKeyUtils.formatDate(usageData.last_used) }}</div>
-                <div class="text-sm text-gray-500">Last Used</div>
-              </div>
-            </div>
-
-            <div v-if="usageData.daily_usage && usageData.daily_usage.length > 0">
-              <h5 class="font-medium text-gray-900 mb-2">Recent Usage</h5>
-              <div class="space-y-2 max-h-40 overflow-y-auto">
-                <div
-                  v-for="day in usageData.daily_usage"
-                  :key="day.date"
-                  class="flex justify-between text-sm"
-                >
-                  <span>{{ apiKeyUtils.formatDate(day.date) }}</span>
-                  <span class="font-medium">{{ day.requests || day.request_count || 0 }} requests</span>
-                </div>
-              </div>
+          <div>
+            <h4 class="font-medium text-gray-900 mb-3">Usage & Limits</h4>
+            <div class="space-y-2 text-sm">
+              <div><strong>API Key ID:</strong> #{{ selectedAPIKey.api_key_id }}</div>
+              <div><strong>Total Usage:</strong> {{ apiKeyUtils.formatNumber(selectedAPIKey.usage_count || 0) }} requests</div>
+              <div><strong>Rate Limit:</strong> {{ apiKeyUtils.formatNumber(selectedAPIKey.rate_limit_per_hour || 0) }} requests/hour</div>
+              <div><strong>Last Used:</strong> {{ formatDate(selectedAPIKey.last_used) }}</div>
+              <div><strong>Created:</strong> {{ formatDate(selectedAPIKey.created_at) }}</div>
+              <div v-if="selectedAPIKey.expires_at"><strong>Expires:</strong> {{ formatDate(selectedAPIKey.expires_at) }}</div>
             </div>
           </div>
         </div>
 
-        <div v-else class="p-4 text-center text-gray-500">
-          Loading usage data...
-        </div>
-
-        <div class="flex justify-end mt-6 pt-4 border-t border-gray-200">
-          <button
-            @click="showUsageModal = false"
-            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="mt-3 text-center">
-          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-            <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-            </svg>
-          </div>
-          <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2">Delete API Key</h3>
-          <div class="mt-2 px-7 py-3">
-            <p class="text-sm text-gray-500">
-              Are you sure you want to delete the API key <strong>{{ selectedAPIKey?.key_name }}</strong>?
-              This action cannot be undone and will immediately invalidate the key.
-            </p>
-          </div>
-          <div class="items-center px-4 py-3">
-            <button
-              @click="confirmDelete"
-              :disabled="deleteLoading"
-              class="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-24 mr-2 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50"
-            >
-              {{ deleteLoading ? 'Deleting...' : 'Delete' }}
-            </button>
-            <button
-              @click="showDeleteModal = false"
-              class="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-24 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- New API Key Display Modal -->
-    <div v-if="newAPIKeyData" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-            <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2 text-center">API Key Created</h3>
-          <div class="mt-4">
-            <p class="text-sm text-gray-600 mb-4">
-              Your API key has been created successfully. <strong>Please copy and save this key now</strong> - you won't be able to see it again.
-            </p>
-
-            <div class="bg-gray-50 p-4 rounded-lg">
-              <label class="block text-sm font-medium text-gray-700 mb-2">API Key</label>
-              <div class="flex items-center gap-2">
-                <input
-                  :value="newAPIKeyData.plain_key"
-                  readonly
-                  class="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-sm font-mono"
-                />
-                <button
-                  @click="copyAPIKey"
-                  class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  {{ apiKeyCopied ? 'Copied!' : 'Copy' }}
-                </button>
-              </div>
+        <!-- Permissions Section -->
+        <div v-if="selectedAPIKey.permissions">
+          <h4 class="font-medium text-gray-900 mb-3">Permissions</h4>
+          <div class="bg-gray-50 rounded-lg p-4">
+            <div class="flex flex-wrap gap-2">
+              <span
+                v-for="(actions, resource) in selectedAPIKey.permissions"
+                :key="resource"
+                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
+              >
+                {{ getResourceLabel(resource) }}: {{ Array.isArray(actions) ? actions.join(', ') : actions }}
+              </span>
             </div>
+          </div>
+        </div>
 
-            <div class="mt-4 text-sm text-gray-600">
-              <p><strong>Key Name:</strong> {{ newAPIKeyData.api_key.key_name }}</p>
-              <p><strong>Rate Limit:</strong> {{ newAPIKeyData.api_key.rate_limit_per_hour }} requests/hour</p>
-              <p v-if="newAPIKeyData.api_key.expires_at">
-                <strong>Expires:</strong> {{ apiKeyUtils.formatDate(newAPIKeyData.api_key.expires_at) }}
+        <!-- Security Notice -->
+        <div v-if="apiKeyUtils.isExpiringSoon(selectedAPIKey)" class="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+          <div class="flex">
+            <ActionIcon name="warning" size="sm" class="text-yellow-400 mr-2 mt-0.5" />
+            <div>
+              <p class="text-sm text-yellow-800">
+                <strong>Expiring Soon:</strong> This API key will expire on {{ formatDate(selectedAPIKey.expires_at) }}.
               </p>
             </div>
           </div>
+        </div>
 
-          <div class="flex justify-center mt-6">
-            <button
-              @click="closeNewAPIKeyModal"
-              class="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
-            >
-              Close
-            </button>
+        <div v-if="apiKeyUtils.isExpired(selectedAPIKey)" class="bg-red-50 border border-red-200 rounded-md p-4">
+          <div class="flex">
+            <ActionIcon name="warning" size="sm" class="text-red-400 mr-2 mt-0.5" />
+            <div>
+              <p class="text-sm text-red-800">
+                <strong>Expired:</strong> This API key expired on {{ formatDate(selectedAPIKey.expires_at) }} and is no longer valid.
+              </p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <template #footer>
+        <div class="flex justify-end space-x-3">
+          <button @click="closeViewModal" class="btn btn-outline">
+            Close
+          </button>
+          <button
+            v-if="canManageAPIKeys && selectedAPIKey"
+            @click="viewUsageFromView"
+            class="btn btn-secondary"
+          >
+            <ActionIcon name="chart" size="xs" class="mr-1" />
+            View Usage
+          </button>
+          <button
+            v-if="canManageAPIKeys && selectedAPIKey"
+            @click="editFromView"
+            class="btn btn-primary"
+          >
+            <ActionIcon name="edit" size="xs" class="mr-1" />
+            Edit API Key
+          </button>
+        </div>
+      </template>
+    </BaseModal>
+
+    <!-- Usage Modal -->
+    <BaseModal
+      :open="showUsageModal"
+      title="API Key Usage"
+      @close="closeUsageModal"
+    >
+      <div v-if="selectedAPIKey" class="space-y-4">
+        <div>
+          <h4 class="font-medium text-gray-900">{{ selectedAPIKey.key_name }}</h4>
+          <p class="text-sm text-gray-500">{{ selectedAPIKey.description || 'No description' }}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-gray-900">
+              {{ apiKeyUtils.formatNumber(usageData?.total_requests || selectedAPIKey.usage_count || 0) }}
+            </div>
+            <div class="text-sm text-gray-500">Total Requests</div>
+          </div>
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <div class="text-sm font-medium text-gray-900">
+              {{ formatDate(usageData?.last_used || selectedAPIKey.last_used) }}
+            </div>
+            <div class="text-sm text-gray-500">Last Used</div>
+          </div>
+        </div>
+
+        <div v-if="usageData?.daily_usage && usageData.daily_usage.length > 0">
+          <h5 class="font-medium text-gray-900 mb-2">Recent Usage</h5>
+          <div class="space-y-2 max-h-40 overflow-y-auto">
+            <div
+              v-for="day in usageData.daily_usage"
+              :key="day.date"
+              class="flex justify-between text-sm"
+            >
+              <span>{{ formatDate(day.date) }}</span>
+              <span class="font-medium">{{ day.requests || day.request_count || 0 }} requests</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="!usageData && usageLoading" class="p-4 text-center text-gray-500">
+          <ActionIcon name="refresh" size="sm" class="animate-spin mr-2" />
+          Loading usage data...
+        </div>
+      </div>
+
+      <template #footer>
+        <button @click="closeUsageModal" class="btn btn-outline">
+          Close
+        </button>
+      </template>
+    </BaseModal>
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmationModal
+      :open="showDeleteModal"
+      type="danger"
+      entity-name="API key"
+      :entity-value="selectedAPIKey?.key_name"
+      :loading="deleteLoading"
+      @close="closeDeleteModal"
+      @confirm="confirmDelete"
+    >
+      <template #default>
+        <p class="text-sm text-gray-600 mb-4">
+          Are you sure you want to delete API key "{{ selectedAPIKey?.key_name }}"?
+          This action cannot be undone and will immediately invalidate the key.
+        </p>
+
+        <div v-if="selectedAPIKey && (selectedAPIKey.usage_count || 0) > 0" class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+          <div class="flex">
+            <ActionIcon name="warning" size="sm" class="text-yellow-400 mr-2" />
+            <div>
+              <p class="text-sm text-yellow-800">
+                <strong>Warning:</strong> This API key has been used {{ apiKeyUtils.formatNumber(selectedAPIKey.usage_count) }} times.
+                Any systems using this key will lose access immediately.
+              </p>
+            </div>
+          </div>
+        </div>
+      </template>
+    </ConfirmationModal>
+
+    <!-- Status Toggle Confirmation Modal -->
+    <ConfirmationModal
+      :open="showStatusModal"
+      :type="statusAction === 'deactivate' ? 'warning' : 'info'"
+      :title="`${statusAction === 'deactivate' ? 'Deactivate' : 'Activate'} API Key`"
+      :loading="statusLoading"
+      @close="showStatusModal = false"
+      @confirm="confirmStatusChange"
+    >
+      <template #default>
+        <p class="text-sm text-gray-600 mb-4">
+          Are you sure you want to {{ statusAction }} API key "{{ selectedAPIKey?.key_name }}"?
+        </p>
+
+        <div v-if="statusAction === 'deactivate' && selectedAPIKey && (selectedAPIKey.usage_count || 0) > 0"
+             class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+          <div class="flex">
+            <ActionIcon name="warning" size="sm" class="text-yellow-400 mr-2" />
+            <div>
+              <p class="text-sm text-yellow-800">
+                <strong>Note:</strong> Deactivating this API key will immediately stop {{ apiKeyUtils.formatNumber(selectedAPIKey.usage_count) }} active integrations.
+              </p>
+            </div>
+          </div>
+        </div>
+      </template>
+    </ConfirmationModal>
+
+    <!-- New API Key Display Modal -->
+    <BaseModal
+      :open="!!newAPIKeyData"
+      title="API Key Created Successfully"
+      @close="closeNewAPIKeyModal"
+    >
+      <div v-if="newAPIKeyData" class="space-y-6">
+        <div class="flex items-center justify-center">
+          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+            <ActionIcon name="success" size="lg" class="text-green-600" />
+          </div>
+        </div>
+
+        <div class="text-center">
+          <p class="text-sm text-gray-600 mb-4">
+            Your API key has been created successfully. <strong>Please copy and save this key now</strong> - you won't be able to see it again.
+          </p>
+        </div>
+
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <label class="block text-sm font-medium text-gray-700 mb-2">API Key</label>
+          <div class="flex items-center gap-2">
+            <input
+              :value="newAPIKeyData.plain_key"
+              readonly
+              class="flex-1 bg-white border border-gray-300 rounded px-3 py-2 text-sm font-mono"
+            />
+            <button
+              @click="copyAPIKey"
+              class="btn btn-primary"
+            >
+              <ActionIcon name="copy" size="xs" class="mr-1" />
+              {{ apiKeyCopied ? 'Copied!' : 'Copy' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="text-sm text-gray-600 space-y-1">
+          <p><strong>Key Name:</strong> {{ newAPIKeyData.api_key.key_name }}</p>
+          <p><strong>Rate Limit:</strong> {{ newAPIKeyData.api_key.rate_limit_per_hour }} requests/hour</p>
+          <p v-if="newAPIKeyData.api_key.expires_at">
+            <strong>Expires:</strong> {{ formatDate(newAPIKeyData.api_key.expires_at) }}
+          </p>
+        </div>
+      </div>
+
+      <template #footer>
+        <button @click="closeNewAPIKeyModal" class="btn btn-primary">
+          <ActionIcon name="success" size="xs" class="mr-1" />
+          Got it
+        </button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, h } from 'vue'
-import { usePermissions, useAPIKeyPermissions } from '@/composables/usePermissions'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { apiKeyService, apiKeyUtils } from '@/services/apiKeys'
+import { formatDate } from '@/utils/formatters'
+import { useErrorHandler } from '@/utils/errorHandling'
 
-// Use centralized permissions
-const { hasPermission, getAPIKeyResources } = usePermissions()
-const { availableResources: apiKeyResources } = useAPIKeyPermissions()
+// ✅ CONSOLIDATED: Import reusable components
+import ActionIcon from '@/components/icons/ActionIcons.vue'
+import StatsGrid from '@/components/ui/StatsGrid.vue'
+import DataTable from '@/components/tables/DataTable.vue'
+import APIKeyFormModal from '@/components/admin/apikeys/APIKeyFormModal.vue'
+import APIKeyActionButtons from '@/components/admin/apikeys/APIKeyActionButtons.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
+import ConfirmationModal from '@/components/ui/ConfirmationModal.vue'
+
+const authStore = useAuthStore()
+const route = useRoute()
+
+// ✅ CONSOLIDATED: Use centralized error handling
+const { handleError } = useErrorHandler('API Key Management')
 
 // Reactive data
 const loading = ref(false)
 const error = ref('')
 const apiKeys = ref([])
+const apiKeyStats = ref({
+  total: 0,
+  active: 0,
+  expiring: 0,
+  totalUsage: 0
+})
+
+// ✅ CONSOLIDATED: Filter states (search handled by DataTable)
+const statusFilter = ref('')
+const usageFilter = ref('')
 
 // Modal states
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
+const showViewModal = ref(false)
 const showUsageModal = ref(false)
 const showDeleteModal = ref(false)
+const showStatusModal = ref(false)
 const selectedAPIKey = ref(null)
 const deleteLoading = ref(false)
+const statusLoading = ref(false)
+const statusAction = ref('') // 'activate' or 'deactivate'
 const newAPIKeyData = ref(null)
 const apiKeyCopied = ref(false)
 const usageData = ref(null)
+const usageLoading = ref(false)
 
-// Form states
-const createLoading = ref(false)
-const createError = ref('')
-const editLoading = ref(false)
-const editError = ref('')
+// ✅ CONSOLIDATED: Define table columns for DataTable
+const apiKeyColumns = [
+  {
+    key: 'display_name',
+    label: 'API Key',
+    sortable: true,
+    searchable: true
+  },
+  {
+    key: 'key_prefix',
+    label: 'Prefix',
+    sortable: false
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    sortable: true
+  },
+  {
+    key: 'usage',
+    label: 'Usage',
+    sortable: false
+  },
+  {
+    key: 'rate_limit',
+    label: 'Rate Limit',
+    sortable: true,
+    key_path: 'rate_limit_per_hour'
+  },
+  {
+    key: 'last_used',
+    label: 'Last Used',
+    sortable: true,
+    formatter: (value) => formatDate(value)
+  },
+  {
+    key: 'created_at',
+    label: 'Created',
+    sortable: true,
+    formatter: (value) => formatDate(value)
+  },
+  {
+    key: 'actions',
+    label: 'Actions',
+    sortable: false,
+    cellClass: 'text-right'
+  }
+]
 
-// Form data - simplified using centralized permissions
-const createForm = ref({
-  key_name: '',
-  description: '',
-  rate_limit_per_hour: 1000,
-  contract_access: null
+// ✅ CONSOLIDATED: Permission checks
+const canManageAPIKeys = computed(() => {
+  return authStore.hasPermission('api_keys', 'create') ||
+         authStore.hasPermission('api_keys', 'update') ||
+         authStore.user?.role?.name === 'admin'
 })
 
-const editForm = ref({
-  key_name: '',
-  description: '',
-  rate_limit_per_hour: 1000,
-  active: true,
-  contract_access: null
+// ✅ CONSOLIDATED: Format stats for StatsGrid component
+const apiKeyStatsFormatted = computed(() => [
+  {
+    title: 'Total Keys',
+    value: apiKeyStats.value.total,
+    icon: 'key',
+    color: 'blue'
+  },
+  {
+    title: 'Active Keys',
+    value: apiKeyStats.value.active,
+    icon: 'success',
+    color: 'green'
+  },
+  {
+    title: 'Expiring Soon',
+    value: apiKeyStats.value.expiring,
+    icon: 'warning',
+    color: 'yellow'
+  },
+  {
+    title: 'Total Usage',
+    value: apiKeyUtils.formatNumber(apiKeyStats.value.totalUsage),
+    icon: 'chart-bar',
+    color: 'purple'
+  }
+])
+
+// ✅ CONSOLIDATED: Filtered API keys for DataTable
+const filteredAPIKeys = computed(() => {
+  let filtered = apiKeys.value.map(apiKey => ({
+    ...apiKey,
+    display_name: apiKey.key_name,
+    status_text: apiKeyUtils.getStatus(apiKey)
+  }))
+
+  // Apply status filter
+  if (statusFilter.value) {
+    filtered = filtered.filter(apiKey => {
+      const status = apiKeyUtils.getStatus(apiKey).toLowerCase()
+      if (statusFilter.value === 'active') return status === 'active'
+      if (statusFilter.value === 'inactive') return status === 'inactive'
+      if (statusFilter.value === 'expired') return status === 'expired'
+      if (statusFilter.value === 'expiring') return status === 'expiring soon'
+      return true
+    })
+  }
+
+  // Apply usage filter
+  if (usageFilter.value) {
+    if (usageFilter.value === 'used') {
+      filtered = filtered.filter(apiKey => apiKey.last_used)
+    } else if (usageFilter.value === 'unused') {
+      filtered = filtered.filter(apiKey => !apiKey.last_used)
+    }
+  }
+
+  return filtered
 })
 
-// Permission handlers using centralized system
-const createPermissions = ref({})
-const editPermissions = ref({})
+// ✅ CONSOLIDATED: Clear filters
+const clearFilters = () => {
+  statusFilter.value = ''
+  usageFilter.value = ''
+}
 
-// Initialize permission handlers
-const { hasPermission: createHasPermission, togglePermission: createTogglePermission } = useAPIKeyPermissions()
-const { hasPermission: editHasPermission, togglePermission: editTogglePermission } = useAPIKeyPermissions()
-
-// Setup permission reactive objects
-createPermissions.value = {
-  hasPermission: (resource, action) => createHasPermission(createForm.value.permissions || {}, resource, action),
-  togglePermission: (resource, action, checked) => {
-    if (!createForm.value.permissions) createForm.value.permissions = {}
-    createTogglePermission(createForm.value.permissions, resource, action, checked)
+// Helper functions for status display
+const getStatusIcon = (apiKey) => {
+  const status = apiKeyUtils.getStatus(apiKey)
+  switch (status) {
+    case 'Active': return 'success'
+    case 'Inactive': return 'warning'
+    case 'Expired': return 'close'
+    case 'Expiring Soon': return 'warning'
+    default: return 'warning'
   }
 }
 
-editPermissions.value = {
-  hasPermission: (resource, action) => editHasPermission(editForm.value.permissions || {}, resource, action),
-  togglePermission: (resource, action, checked) => {
-    if (!editForm.value.permissions) editForm.value.permissions = {}
-    editTogglePermission(editForm.value.permissions, resource, action, checked)
+const getStatusIconColor = (apiKey) => {
+  const status = apiKeyUtils.getStatus(apiKey)
+  switch (status) {
+    case 'Active': return 'text-green-400'
+    case 'Inactive': return 'text-gray-400'
+    case 'Expired': return 'text-red-400'
+    case 'Expiring Soon': return 'text-yellow-400'
+    default: return 'text-gray-400'
   }
 }
 
-// Additional form states
-const hasExpirationDate = ref(false)
-const expirationDate = ref('')
-const editHasExpirationDate = ref(false)
-const editExpirationDate = ref('')
-
-// Computed properties
-const apiKeyStats = computed(() => {
-  const total = apiKeys.value.length
-  const active = apiKeys.value.filter(key => key.active && !apiKeyUtils.isExpired(key)).length
-  const expiring = apiKeys.value.filter(key => apiKeyUtils.isExpiringSoon(key)).length
-  const totalUsage = apiKeys.value.reduce((sum, key) => sum + (key.usage_count || 0), 0)
-
-  return { total, active, expiring, totalUsage }
-})
-
-const isFormValid = computed(() => {
-  return createForm.value.key_name.trim() !== '' &&
-         createForm.value.permissions &&
-         Object.keys(createForm.value.permissions).length > 0
-})
-
-const isEditFormValid = computed(() => {
-  return editForm.value.key_name.trim() !== '' &&
-         editForm.value.permissions &&
-         Object.keys(editForm.value.permissions).length > 0
-})
-
-// Icon helper functions
-const getResourceIcon = (iconName) => {
-  const icons = {
-    'users': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' })
-    ]),
-    'users-multiple': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' })
-    ]),
-    'document-text': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
-    ]),
-    'collection': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })
-    ]),
-    'key': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1221 9z' })
-    ]),
-    'desktop-computer': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' })
-    ]),
-    'video-camera': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' })
-    ]),
-    'server': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01' })
-    ]),
-    'bell': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 17h5l-5 5v-5zM12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' })
-    ]),
-    'wifi': () => h('svg', { class: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0' })
-    ])
-  }
-
-  return icons[iconName] || icons['key']
+const getResourceLabel = (resourceName) => {
+  // Simple resource name formatting
+  return resourceName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
-const getRiskBadgeClass = (risk) => {
-  const classes = {
-    low: 'bg-green-100 text-green-800',
-    medium: 'bg-yellow-100 text-yellow-800',
-    high: 'bg-orange-100 text-orange-800',
-    critical: 'bg-red-100 text-red-800'
-  }
-  return classes[risk] || classes.low
-}
-
-// Methods
+// API functions
 const loadAPIKeys = async () => {
   loading.value = true
   error.value = ''
 
   try {
-    apiKeys.value = await apiKeyService.apiKeys.getAll()
+    const apiKeysData = await apiKeyService.apiKeys.getAll()
+    apiKeys.value = apiKeysData
+
+    // Generate stats from API key data
+    const total = apiKeys.value.length
+    const active = apiKeys.value.filter(key => key.active && !apiKeyUtils.isExpired(key)).length
+    const expiring = apiKeys.value.filter(key => apiKeyUtils.isExpiringSoon(key)).length
+    const totalUsage = apiKeys.value.reduce((sum, key) => sum + (key.usage_count || 0), 0)
+
+    apiKeyStats.value = { total, active, expiring, totalUsage }
+
   } catch (err) {
-    error.value = apiKeyUtils.formatError(err)
-    console.error('Failed to load API keys:', err)
+    error.value = handleError(err)
   } finally {
     loading.value = false
   }
 }
 
-// Modal management
+// Modal handlers
 const closeCreateModal = () => {
   showCreateModal.value = false
-  createForm.value = {
-    key_name: '',
-    description: '',
-    rate_limit_per_hour: 1000,
-    permissions: {},
-    contract_access: null
-  }
-  hasExpirationDate.value = false
-  expirationDate.value = ''
-  createError.value = ''
 }
 
 const closeEditModal = () => {
   showEditModal.value = false
   selectedAPIKey.value = null
-  editError.value = ''
 }
 
-// API operations
-const handleCreateAPIKey = async () => {
-  createLoading.value = true
-  createError.value = ''
+const closeViewModal = () => {
+  showViewModal.value = false
+  selectedAPIKey.value = null
+}
 
-  try {
-    console.log('Creating API key with form data:', createForm.value)
+const closeUsageModal = () => {
+  showUsageModal.value = false
+  usageData.value = null
+  usageLoading.value = false
+  selectedAPIKey.value = null
+}
 
-    const requestData = {
-      key_name: createForm.value.key_name,
-      description: createForm.value.description || null,
-      rate_limit_per_hour: createForm.value.rate_limit_per_hour || 1000,
-      permissions: createForm.value.permissions,
-      contract_access: null,
-      expires_at: hasExpirationDate.value && expirationDate.value ?
-        new Date(expirationDate.value).toISOString() : null
-    }
+const closeDeleteModal = () => {
+  showDeleteModal.value = false
+  selectedAPIKey.value = null
+}
 
-    console.log('Sending API key creation request:', requestData)
+const closeNewAPIKeyModal = () => {
+  newAPIKeyData.value = null
+  apiKeyCopied.value = false
+}
 
-    const response = await apiKeyService.apiKeys.create(requestData)
-    console.log('API key creation response:', response)
-
-    newAPIKeyData.value = response
-    await loadAPIKeys()
-    closeCreateModal()
-  } catch (err) {
-    console.error('API key creation failed:', err)
-    createError.value = apiKeyUtils.formatError(err)
-  } finally {
-    createLoading.value = false
+const handleAPIKeySaved = (result) => {
+  loadAPIKeys()
+  if (result?.plain_key) {
+    newAPIKeyData.value = result
   }
+  closeCreateModal()
+  closeEditModal()
+}
+
+const viewAPIKey = (apiKey) => {
+  selectedAPIKey.value = { ...apiKey }
+  showViewModal.value = true
 }
 
 const editAPIKey = (apiKey) => {
+  console.log('Edit API key clicked:', apiKey.api_key_id)
+
+  if (!apiKey || !apiKey.api_key_id) {
+    console.warn('Invalid API key for edit:', apiKey)
+    return
+  }
+
+  // Close all other modals
+  showCreateModal.value = false
+  showViewModal.value = false
+  showUsageModal.value = false
+  showDeleteModal.value = false
+
+  // Set API key and open modal
   selectedAPIKey.value = { ...apiKey }
 
-  editForm.value = {
-    key_name: apiKey.key_name,
-    description: apiKey.description || '',
-    rate_limit_per_hour: apiKey.rate_limit_per_hour,
-    active: apiKey.active,
-    permissions: apiKey.permissions ? { ...apiKey.permissions } : {},
-    contract_access: apiKey.contract_access
-  }
-
-  if (apiKey.expires_at) {
-    editHasExpirationDate.value = true
-    editExpirationDate.value = new Date(apiKey.expires_at).toISOString().slice(0, 16)
-  } else {
-    editHasExpirationDate.value = false
-    editExpirationDate.value = ''
-  }
-
-  editError.value = ''
-  showEditModal.value = true
+  nextTick(() => {
+    showEditModal.value = true
+    console.log('Edit modal should be open now')
+  })
 }
 
-const handleUpdateAPIKey = async () => {
-  editLoading.value = true
-  editError.value = ''
+const editFromView = () => {
+  console.log('Edit from view clicked')
 
-  try {
-    console.log('Updating API key with form data:', editForm.value)
-
-    const updateData = {
-      key_name: editForm.value.key_name,
-      description: editForm.value.description || null,
-      rate_limit_per_hour: editForm.value.rate_limit_per_hour,
-      active: editForm.value.active,
-      permissions: editForm.value.permissions,
-      contract_access: editForm.value.contract_access,
-      expires_at: editHasExpirationDate.value && editExpirationDate.value ?
-        new Date(editExpirationDate.value).toISOString() : null
-    }
-
-    console.log('Sending API key update request:', updateData)
-
-    await apiKeyService.apiKeys.update(selectedAPIKey.value.api_key_id, updateData)
-    await loadAPIKeys()
-    closeEditModal()
-  } catch (err) {
-    console.error('API key update failed:', err)
-    editError.value = apiKeyUtils.formatError(err)
-  } finally {
-    editLoading.value = false
+  if (!selectedAPIKey.value) {
+    console.warn('No selected API key for edit from view')
+    return
   }
+
+  showViewModal.value = false
+
+  nextTick(() => {
+    showEditModal.value = true
+    console.log('Edit modal opened from view')
+  })
+}
+
+const viewUsageFromView = () => {
+  console.log('View usage from view clicked')
+
+  if (!selectedAPIKey.value) {
+    console.warn('No selected API key for usage from view')
+    return
+  }
+
+  showViewModal.value = false
+
+  nextTick(() => {
+    viewUsage(selectedAPIKey.value)
+    console.log('Usage modal opened from view')
+  })
 }
 
 const viewUsage = async (apiKey) => {
-  selectedAPIKey.value = apiKey
+  selectedAPIKey.value = { ...apiKey }
   showUsageModal.value = true
   usageData.value = null
+  usageLoading.value = true
 
   try {
     usageData.value = await apiKeyService.apiKeys.getUsage(apiKey.api_key_id)
@@ -957,21 +803,20 @@ const viewUsage = async (apiKey) => {
       total_requests: apiKey.usage_count || 0,
       last_used: apiKey.last_used
     }
-  }
-}
-
-const toggleAPIKeyStatus = async (apiKey) => {
-  try {
-    await apiKeyService.apiKeys.update(apiKey.api_key_id, { active: !apiKey.active })
-    await loadAPIKeys()
-  } catch (err) {
-    alert('Failed to update API key status: ' + apiKeyUtils.formatError(err))
+  } finally {
+    usageLoading.value = false
   }
 }
 
 const deleteAPIKey = (apiKey) => {
-  selectedAPIKey.value = apiKey
+  selectedAPIKey.value = { ...apiKey }
   showDeleteModal.value = true
+}
+
+const toggleAPIKeyStatus = (apiKey) => {
+  selectedAPIKey.value = { ...apiKey }
+  statusAction.value = apiKey.active ? 'deactivate' : 'activate'
+  showStatusModal.value = true
 }
 
 const confirmDelete = async () => {
@@ -983,9 +828,29 @@ const confirmDelete = async () => {
     showDeleteModal.value = false
     selectedAPIKey.value = null
   } catch (err) {
-    alert('Failed to delete API key: ' + apiKeyUtils.formatError(err))
+    const errorMessage = handleError(err)
+    alert('Failed to delete API key: ' + errorMessage)
   } finally {
     deleteLoading.value = false
+  }
+}
+
+const confirmStatusChange = async () => {
+  statusLoading.value = true
+
+  try {
+    const newStatus = statusAction.value === 'activate'
+    await apiKeyService.apiKeys.update(selectedAPIKey.value.api_key_id, { active: newStatus })
+
+    await loadAPIKeys()
+    showStatusModal.value = false
+    selectedAPIKey.value = null
+    statusAction.value = ''
+  } catch (err) {
+    const errorMessage = handleError(err)
+    alert(`Failed to ${statusAction.value} API key: ` + errorMessage)
+  } finally {
+    statusLoading.value = false
   }
 }
 
@@ -1012,16 +877,20 @@ const copyAPIKey = async () => {
   }
 }
 
-const closeNewAPIKeyModal = () => {
-  newAPIKeyData.value = null
-  apiKeyCopied.value = false
-}
+onMounted(async () => {
+  await loadAPIKeys()
 
-// Lifecycle
-onMounted(() => {
-  loadAPIKeys()
-  // Initialize permissions objects
-  createForm.value.permissions = {}
-  editForm.value.permissions = {}
+  // Check if there's a view parameter
+  const viewId = route.query.view
+  if (viewId) {
+    const apiKey = apiKeys.value.find(k => k.api_key_id === parseInt(viewId))
+    if (apiKey) {
+      viewAPIKey(apiKey)
+    }
+  }
 })
 </script>
+
+<style scoped>
+/* DataTable handles most styling, minimal custom styles needed */
+</style>

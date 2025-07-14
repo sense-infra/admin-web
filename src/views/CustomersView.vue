@@ -377,6 +377,8 @@ const customerStats = ref({
   withContracts: 0
 })
 
+const customerContractMap = ref(new Map()) // Cache for customer-contract relationships
+
 // ✅ CONSOLIDATED: Filter states (search handled by DataTable)
 const contractFilter = ref('')
 const emailFilter = ref('')
@@ -442,35 +444,46 @@ const canManageCustomers = computed(() => {
 })
 
 // ✅ CONSOLIDATED: Format stats for StatsGrid component
-const customerStatsFormatted = computed(() => [
-  {
-    title: 'Total Customers',
-    value: customerStats.value.total,
-    icon: 'users',
-    color: 'blue'
-  },
-  {
-    title: 'Recent (30 days)',
-    value: customerStats.value.recent,
-    icon: 'clock',
-    color: 'green'
-  },
-  {
-    title: 'With Email',
-    value: customerStats.value.withEmail,
-    icon: 'mail',
-    color: 'purple'
-  },
-  {
-    title: 'With Contracts',
-    value: customerStats.value.withContracts,
-    icon: 'document',
-    color: 'orange'
-  }
-])
+const customerStatsFormatted = computed(() => {
+  // Count customers with contracts using the cache
+  const withContracts = customers.value.filter(customer => 
+    getCustomerContracts(customer.customer_id).length > 0
+  ).length
+
+  return [
+    {
+      title: 'Total Customers',
+      value: customerStats.value.total,
+      icon: 'customers',
+      color: 'blue'
+    },
+    {
+      title: 'Recent (30 days)',
+      value: customerStats.value.recent,
+      icon: 'clock',
+      color: 'green'
+    },
+    {
+      title: 'With Email',
+      value: customerStats.value.withEmail,
+      icon: 'email', // Use the email icon you just added
+      color: 'purple'
+    },
+    {
+      title: 'With Contracts',
+      value: withContracts,
+      icon: 'document',
+      color: 'orange'
+    }
+  ]
+})
 
 // ✅ CONSOLIDATED: Filtered customers for DataTable
 const filteredCustomers = computed(() => {
+  // Trigger reactivity when contracts or customerContractMap changes
+  contracts.value.length // Just to trigger reactivity
+  customerContractMap.value.size // Just to trigger reactivity
+  
   let filtered = customers.value.map(customer => ({
     ...customer,
     display_name: customer.name_on_contract,
@@ -528,6 +541,11 @@ const loadCustomers = async () => {
     const customersData = await customerService.customers.getAll()
     customers.value = customersData
 
+    // Rebuild contract mapping if contracts are already loaded
+    if (contracts.value.length > 0) {
+      buildCustomerContractMap()
+    }
+
     // Generate stats from customer data
     customerStats.value = customerUtils.generateStats(customers.value, contracts.value)
 
@@ -542,20 +560,38 @@ const loadContracts = async () => {
   try {
     const response = await api.get('/contracts')
     contracts.value = Array.isArray(response.data) ? response.data : []
+    
+    // Build customer-contract mapping cache
+    buildCustomerContractMap()
+    
   } catch (err) {
     console.error('Failed to load contracts:', err)
     contracts.value = []
+    customerContractMap.value.clear()
   }
 }
 
-// Helper functions
-const getCustomerContracts = (customerId) => {
-  return contracts.value.filter(contract => {
+const buildCustomerContractMap = () => {
+  customerContractMap.value.clear()
+  
+  contracts.value.forEach(contract => {
+    // Check customers array (this is where your data is)
     if (contract.customers && Array.isArray(contract.customers)) {
-      return contract.customers.some(customer => customer.customer_id === customerId)
+      contract.customers.forEach(customer => {
+        const customerId = customer.customer_id
+        if (!customerContractMap.value.has(customerId)) {
+          customerContractMap.value.set(customerId, [])
+        }
+        customerContractMap.value.get(customerId).push(contract)
+      })
     }
-    return contract.customer_id === customerId
   })
+  
+  console.log('Built customer-contract mapping for', customerContractMap.value.size, 'customers')
+}
+
+const getCustomerContracts = (customerId) => {
+  return customerContractMap.value.get(customerId) || []
 }
 
 const getContractStatus = (startDate, endDate) => {
@@ -759,13 +795,15 @@ const confirmDelete = async () => {
 }
 
 onMounted(async () => {
-  console.log('CustomersView mounted') // Debug log
-  
-  // Load data in parallel
-  await Promise.allSettled([
-    loadCustomers(),
-    loadContracts()
-  ])
+  console.log('CustomersView mounted')
+
+  // Load contracts first, then customers to ensure proper mapping
+  try {
+    await loadContracts() // Load contracts first
+    await loadCustomers() // Then load customers
+  } catch (err) {
+    console.error('Failed to load initial data:', err)
+  }
 
   // Check if there's a view parameter
   const viewId = route.query.view

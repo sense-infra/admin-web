@@ -95,7 +95,12 @@
         <!-- Permissions Section -->
         <div>
           <div class="flex justify-between items-center mb-4">
-            <h4 class="text-sm font-medium text-gray-700">Permissions</h4>
+            <h4 class="text-sm font-medium text-gray-700">
+              Permissions *
+              <span class="text-xs font-normal text-gray-500 ml-1">
+                ({{ getPermissionCount(form.permissions) }} selected)
+              </span>
+            </h4>
             <div class="flex gap-2">
               <button
                 type="button"
@@ -111,6 +116,17 @@
               >
                 Clear All
               </button>
+            </div>
+          </div>
+
+          <!-- Enhanced permission validation error display -->
+          <div v-if="errors.permissions" class="mb-3 p-3 bg-red-50 border border-red-200 rounded-md">
+            <div class="flex items-start">
+              <ActionIcon name="warning" size="sm" class="text-red-400 mr-2 mt-0.5" />
+              <div>
+                <p class="text-sm font-medium text-red-800">Permission Error</p>
+                <p class="text-sm text-red-700">{{ errors.permissions }}</p>
+              </div>
             </div>
           </div>
 
@@ -164,7 +180,7 @@
                     <label
                       v-for="action in resource.actions"
                       :key="action.name"
-                      class="flex items-center space-x-2 text-sm"
+                      class="flex items-center space-x-2 text-sm cursor-pointer"
                     >
                       <input
                         type="checkbox"
@@ -225,8 +241,19 @@
                       class="flex justify-between text-xs"
                     >
                       <span class="text-purple-700">{{ getResourceLabel(resource) }}:</span>
-                      <span class="text-purple-900 font-medium">{{ actions.length }}</span>
+                      <span class="text-purple-900 font-medium">{{ Array.isArray(actions) ? actions.length : 1 }}</span>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Risk Analysis -->
+              <div class="mt-3 pt-3 border-t border-purple-200">
+                <h6 class="text-xs font-medium text-purple-800 mb-2">Risk Analysis:</h6>
+                <div class="grid grid-cols-4 gap-2 text-xs">
+                  <div v-for="(count, risk) in getRiskAnalysis(form.permissions)" :key="risk" class="flex justify-between">
+                    <span :class="getRiskTextColor(risk)">{{ risk }}:</span>
+                    <span class="font-medium">{{ count }}</span>
                   </div>
                 </div>
               </div>
@@ -292,11 +319,26 @@ const isSystemRole = computed(() => {
 
 const initialData = computed(() => {
   if (props.role) {
+    // FIXED: Properly handle permissions in edit mode
+    let permissions = {}
+    if (props.role.permissions) {
+      if (typeof props.role.permissions === 'string') {
+        try {
+          permissions = JSON.parse(props.role.permissions)
+        } catch (e) {
+          console.warn('Failed to parse permissions string:', props.role.permissions)
+          permissions = {}
+        }
+      } else if (typeof props.role.permissions === 'object') {
+        permissions = JSON.parse(JSON.stringify(props.role.permissions)) // Deep clone
+      }
+    }
+
     return {
       role_id: props.isClone ? null : props.role.role_id,
       name: props.isClone ? `${props.role.name} Copy` : props.role.name,
       description: props.role.description || '',
-      permissions: props.role.permissions ? { ...props.role.permissions } : {},
+      permissions: permissions, // FIXED: Use properly parsed permissions
       active: props.role.active !== false
     }
   } else {
@@ -329,12 +371,31 @@ const validationRules = computed(() => {
       .maxLength(500)
       .build(),
 
+    // FIXED: Enhanced permissions validation
     permissions: {
-      required: false,
+      required: true,
       validator: (value) => {
-        if (!value || Object.keys(value).length === 0) {
+        if (!value || typeof value !== 'object') {
           return 'At least one permission is required'
         }
+
+        const resourceKeys = Object.keys(value)
+        if (resourceKeys.length === 0) {
+          return 'At least one permission is required'
+        }
+
+        const hasAnyPermission = resourceKeys.some(resource => {
+          const actions = value[resource]
+          if (Array.isArray(actions)) {
+            return actions.length > 0
+          }
+          return !!actions
+        })
+
+        if (!hasAnyPermission) {
+          return 'At least one permission is required'
+        }
+
         return true
       }
     },
@@ -359,7 +420,7 @@ const hasPermission = (permissions, resourceName, actionName) => {
 
 const togglePermission = (resourceName, actionName, checked, form, updateField) => {
   const currentPermissions = { ...form.permissions }
-  
+
   if (!currentPermissions[resourceName]) {
     currentPermissions[resourceName] = []
   }
@@ -381,7 +442,7 @@ const togglePermission = (resourceName, actionName, checked, form, updateField) 
 const hasAllResourcePermissions = (permissions, resourceName) => {
   const resource = availableResources.value.find(r => r.name === resourceName)
   if (!resource) return false
-  
+
   return resource.actions.every(action =>
     permissions?.[resourceName]?.includes(action.name)
   )
@@ -464,6 +525,44 @@ const getActionIcon = (actionName) => {
     delete: 'delete'
   }
   return icons[actionName] || 'cog'
+}
+
+// ADDED: Risk analysis function for roles
+const getRiskAnalysis = (permissions) => {
+  if (!permissions || typeof permissions !== 'object') {
+    return { low: 0, medium: 0, high: 0, critical: 0 }
+  }
+
+  const riskCounts = { low: 0, medium: 0, high: 0, critical: 0 }
+
+  Object.keys(permissions).forEach(resourceName => {
+    const actions = permissions[resourceName]
+    if (!Array.isArray(actions)) return
+
+    const resource = availableResources.value.find(r => r.name === resourceName)
+    if (!resource) return
+
+    actions.forEach(actionName => {
+      const action = resource.actions.find(a => a.name === actionName)
+      if (action && action.risk) {
+        riskCounts[action.risk] = (riskCounts[action.risk] || 0) + 1
+      } else {
+        riskCounts.low += 1
+      }
+    })
+  })
+
+  return riskCounts
+}
+
+const getRiskTextColor = (risk) => {
+  const colors = {
+    low: 'text-green-700',
+    medium: 'text-yellow-700', 
+    high: 'text-orange-700',
+    critical: 'text-red-700'
+  }
+  return colors[risk] || colors.low
 }
 
 const handleSubmit = async (formData, isEditingMode) => {

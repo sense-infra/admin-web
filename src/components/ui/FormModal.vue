@@ -14,11 +14,11 @@
     </template>
 
     <form @submit.prevent="handleSubmit">
-      <slot 
-        :form="form" 
-        :errors="errors" 
-        :isEditing="isEditing" 
-        :isFormValid="isFormValid" 
+      <slot
+        :form="form"
+        :errors="errors"
+        :isEditing="isEditing"
+        :isFormValid="isFormValid"
         :updateField="updateField"
         :validateField="validateField"
         :clearError="clearError"
@@ -113,6 +113,7 @@ const isEditing = computed(() => {
     props.initialData.nvr_id ||
     props.initialData.camera_id ||
     props.initialData.controller_id ||
+    props.initialData.api_key_id ||
     // Generic check for any field ending with _id that has a value
     Object.keys(props.initialData).some(key =>
       key.endsWith('_id') &&
@@ -123,35 +124,91 @@ const isEditing = computed(() => {
   )
 })
 
+// FIXED: Enhanced form validation that properly handles complex objects like permissions
 const isFormValid = computed(() => {
-  // Check if all required fields are filled and no validation errors
+  // First check if we have any explicit validation errors
   const hasErrors = Object.keys(errors.value).some(key => errors.value[key])
-  const hasRequiredFields = Object.keys(props.validationRules).every(key => {
+  if (hasErrors) {
+    return false
+  }
+
+  // Then check all validation rules
+  const allRulesValid = Object.keys(props.validationRules).every(key => {
     const rule = props.validationRules[key]
+    const value = form.value[key]
+
+    // Check required fields
     if (rule.required) {
-      const value = form.value[key]
       // For boolean fields, false is a valid value
-      if (typeof value === 'boolean') return true
+      if (typeof value === 'boolean') {
+        return true
+      }
+
+      // For objects (like permissions), check if they have content
+      if (typeof value === 'object' && value !== null) {
+        if (Array.isArray(value)) {
+          return value.length > 0
+        } else {
+          // For objects like permissions, check if they have any keys with content
+          const objectKeys = Object.keys(value)
+          if (objectKeys.length === 0) {
+            return false
+          }
+          
+          // Check if any resource has at least one action
+          return objectKeys.some(resource => {
+            const actions = value[resource]
+            if (Array.isArray(actions)) {
+              return actions.length > 0
+            }
+            return !!actions
+          })
+        }
+      }
+
+      // For primitive values
       return value !== undefined && value !== null && value !== ''
+    }
+
+    // If not required, it's valid
+    return true
+  })
+
+  if (!allRulesValid) {
+    return false
+  }
+
+  // Run custom validators
+  const customValidationValid = Object.keys(props.validationRules).every(key => {
+    const rule = props.validationRules[key]
+    if (rule.validator && typeof rule.validator === 'function') {
+      const result = rule.validator(form.value[key], form.value)
+      return result === true
     }
     return true
   })
-  return !hasErrors && hasRequiredFields
+
+  return customValidationValid
 })
 
 // ✅ FIX: Add the missing updateField function
 const updateField = (fieldName, value) => {
   // Update the form value
   form.value[fieldName] = value
-  
+
   // Mark field as interacted
   fieldInteracted.value[fieldName] = true
-  
+
   // Clear any existing error for this field
   if (errors.value[fieldName]) {
     errors.value[fieldName] = ''
   }
-  
+
+  // Clear the general error message when user starts fixing issues
+  if (error.value === 'Please fix the validation errors above before submitting.') {
+    error.value = ''
+  }
+
   // Validate if enabled
   if (props.validateOnChange) {
     validateField(fieldName, value, false)
@@ -192,6 +249,41 @@ const validateField = (key, value, immediate = false) => {
     if (typeof value === 'boolean') {
       // Boolean fields are always valid for required check
       return
+    } else if (typeof value === 'object' && value !== null) {
+      // Handle objects like permissions
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          if (immediate || fieldInteracted.value[key] || validationAttempted.value) {
+            errors.value[key] = `At least one ${key.replace(/_/g, ' ')} must be selected`
+          }
+          return
+        }
+      } else {
+        // For objects like permissions, check if they have any content
+        const objectKeys = Object.keys(value)
+        if (objectKeys.length === 0) {
+          if (immediate || fieldInteracted.value[key] || validationAttempted.value) {
+            errors.value[key] = `At least one ${key.replace(/_/g, ' ')} must be selected`
+          }
+          return
+        }
+        
+        // Check if any resource has at least one action
+        const hasAnyPermission = objectKeys.some(resource => {
+          const actions = value[resource]
+          if (Array.isArray(actions)) {
+            return actions.length > 0
+          }
+          return !!actions
+        })
+
+        if (!hasAnyPermission) {
+          if (immediate || fieldInteracted.value[key] || validationAttempted.value) {
+            errors.value[key] = `At least one ${key.replace(/_/g, ' ')} must be selected`
+          }
+          return
+        }
+      }
     } else if (!value || value.toString().trim() === '') {
       if (immediate || fieldInteracted.value[key] || validationAttempted.value) {
         errors.value[key] = `${key.replace(/_/g, ' ')} is required`
@@ -304,7 +396,7 @@ const resetForm = () => {
   validationAttempted.value = false // Reset validation attempt tracking
 }
 
-// FIXED: Proper boolean handling in form initialization
+// FIXED: Proper initialization with deep cloning for objects
 const initializeForm = () => {
   // Initialize form with default values or initial data
   const defaultForm = {}
@@ -314,7 +406,7 @@ const initializeForm = () => {
     defaultForm[key] = ''
   })
 
-  // Then override with actual initial data, preserving data types
+  // Then override with actual initial data, preserving data types and deep cloning objects
   if (props.initialData) {
     Object.keys(props.initialData).forEach(key => {
       const value = props.initialData[key]
@@ -322,6 +414,13 @@ const initializeForm = () => {
       if (typeof value === 'boolean') {
         // Preserve boolean values as-is
         defaultForm[key] = value
+      } else if (typeof value === 'object' && value !== null) {
+        // Deep clone objects (like permissions) to avoid reference issues
+        if (Array.isArray(value)) {
+          defaultForm[key] = [...value]
+        } else {
+          defaultForm[key] = JSON.parse(JSON.stringify(value))
+        }
       } else if (value !== undefined && value !== null) {
         // For non-null/undefined values, use them directly
         defaultForm[key] = value
@@ -344,6 +443,7 @@ watch([() => props.open, () => props.initialData], () => {
   if (props.open) {
     fieldInteracted.value = {} // Reset field-level interaction tracking
     validationAttempted.value = false // Reset validation attempt tracking
+    error.value = '' // Clear any error messages
     initializeForm()
   }
 }, { immediate: true })
